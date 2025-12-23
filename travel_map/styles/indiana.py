@@ -178,26 +178,26 @@ class IndianaJonesRenderer(BaseRenderer):
         m.fit_bounds([[bounds[0], bounds[2]], [bounds[1], bounds[3]]])
 
         # Track shifted positions for duplicate markers at dateline crossings
-        shifted_positions = {}
+        shifted_by_name = {}
 
         # Draw red dotted flight paths
         routes = self.config.get_routes()
         for from_loc, to_loc in routes:
+            # Check if from_loc has a shifted position (for multi-leg trips)
+            from_lon = shifted_by_name.get(from_loc.name, from_loc.lon)
+
             arc_points = self._interpolate_great_circle(
-                from_loc.lat, from_loc.lon,
+                from_loc.lat, from_lon,
                 to_loc.lat, to_loc.lon,
             )
 
             # Unwrap longitudes to make continuous across dateline
             arc_points = self._unwrap_longitudes(arc_points)
 
-            # Check if endpoint longitude was shifted (outside [-180, 180])
+            # Track the endpoint longitude (may be shifted)
             end_lon = arc_points[-1][1]
-            if end_lon > 180 or end_lon < -180:
-                for idx, loc in enumerate(self.config.locations):
-                    if loc.name == to_loc.name:
-                        shifted_positions[idx] = end_lon
-                        break
+            if end_lon != to_loc.lon:
+                shifted_by_name[to_loc.name] = end_lon
 
             arc_coords = [[p[0], p[1]] for p in arc_points]
 
@@ -241,6 +241,12 @@ class IndianaJonesRenderer(BaseRenderer):
                     icon_anchor=(15, 15),
                 ),
             ).add_to(m)
+
+        # Convert shifted_by_name to shifted_positions (by index) for markers
+        shifted_positions = {}
+        for idx, loc in enumerate(self.config.locations):
+            if loc.name in shifted_by_name:
+                shifted_positions[idx] = shifted_by_name[loc.name]
 
         # Add location markers (red circles with vintage feel)
         for i, loc in enumerate(self.config.locations):
