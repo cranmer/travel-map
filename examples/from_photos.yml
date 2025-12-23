@@ -4,12 +4,7 @@ output: interactive
 show_dates: true
 date_format: '%b %d, %Y'
 routes_from_home: true
-trip_gap_days: 7  # Locations within this many days are grouped as one trip
-# Optional: customize home location (defaults to Madison, WI)
-# home:
-#   name: "My Home"
-#   lat: 43.0731
-#   lon: -89.4012
+trip_gap_days: 7
 locations:
 - name: Img 6558
   lat: 46.223133
@@ -19,6 +14,10 @@ locations:
   lat: 53.557064
   lon: 9.971044
   date: '2025-02-15'
+- name: Img 7998
+  lat: 32.321822
+  lon: -110.845664
+  date: '2025-03-10'
 - name: Img 8445
   lat: 9.400631
   lon: -84.168083
@@ -31,6 +30,14 @@ locations:
   lat: 22.2927
   lon: 114.171478
   date: '2025-04-29'
+- name: Img 1325
+  lat: 27.946828
+  lon: -82.459183
+  date: '2025-05-28'
+- name: Img 2487
+  lat: 41.88565
+  lon: -87.646981
+  date: '2025-06-25'
 - name: Img 2872
   lat: 48.859336
   lon: 2.266983
@@ -51,3 +58,7 @@ locations:
   lat: 34.128486
   lon: -118.1167
   date: '2025-11-10'
+- name: Img 8334
+  lat: 32.709044
+  lon: -117.17215
+  date: '2025-12-07'

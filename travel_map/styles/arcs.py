@@ -57,38 +57,38 @@ class ArcsRenderer(BaseRenderer):
 
         return points
 
-    def _split_at_dateline(
+    def _unwrap_longitudes(
         self, points: list[tuple[float, float]]
-    ) -> list[list[tuple[float, float]]]:
-        """Split arc into segments that don't cross the antimeridian.
+    ) -> list[tuple[float, float]]:
+        """Unwrap longitude values to make them continuous across the dateline.
 
-        This prevents Folium from drawing a horizontal line across the map
-        when a great circle arc crosses the ±180° longitude line.
+        Instead of splitting arcs at ±180°, this shifts longitude values to be
+        continuous (e.g., going from 170° to 190° instead of 170° to -170°).
+        Leaflet handles extended longitude values correctly.
         """
         if len(points) < 2:
-            return [points]
+            return points
 
-        segments = []
-        current_segment = [points[0]]
+        unwrapped = [points[0]]
+        offset = 0.0
 
         for i in range(1, len(points)):
-            prev_lon = points[i - 1][1]
-            curr_lon = points[i][1]
+            prev_lon = unwrapped[i - 1][1]
+            curr_lat = points[i][0]
+            curr_lon = points[i][1] + offset
 
-            # Detect dateline crossing (large longitude jump)
-            if abs(curr_lon - prev_lon) > 180:
-                # Save current segment and start a new one
-                if len(current_segment) > 0:
-                    segments.append(current_segment)
-                current_segment = [points[i]]
-            else:
-                current_segment.append(points[i])
+            # Check for dateline crossing (jump > 180°)
+            delta = curr_lon - prev_lon
+            if delta > 180:
+                offset -= 360
+                curr_lon -= 360
+            elif delta < -180:
+                offset += 360
+                curr_lon += 360
 
-        # Don't forget the last segment
-        if len(current_segment) > 0:
-            segments.append(current_segment)
+            unwrapped.append((curr_lat, curr_lon))
 
-        return segments
+        return unwrapped
 
     def render_interactive(self) -> str:
         """Render an interactive Folium map with markers and animated arcs."""
@@ -110,25 +110,22 @@ class ArcsRenderer(BaseRenderer):
                 to_loc.lat, to_loc.lon,
             )
 
-            # Split at dateline to avoid horizontal line across map
-            segments = self._split_at_dateline(arc_points)
+            # Unwrap longitudes to make continuous across dateline
+            arc_points = self._unwrap_longitudes(arc_points)
 
-            for segment in segments:
-                if len(segment) < 2:
-                    continue
-                # Convert to [lat, lon] format for folium
-                arc_coords = [[p[0], p[1]] for p in segment]
+            # Convert to [lat, lon] format for folium
+            arc_coords = [[p[0], p[1]] for p in arc_points]
 
-                # Animated ant path
-                AntPath(
-                    locations=arc_coords,
-                    color=self.arc_color,
-                    weight=3,
-                    opacity=0.8,
-                    delay=1000,
-                    dash_array=[10, 20],
-                    pulse_color="#ffffff",
-                ).add_to(m)
+            # Animated ant path
+            AntPath(
+                locations=arc_coords,
+                color=self.arc_color,
+                weight=3,
+                opacity=0.8,
+                delay=1000,
+                dash_array=[10, 20],
+                pulse_color="#ffffff",
+            ).add_to(m)
 
         # Add markers
         for i, loc in enumerate(self.config.locations):

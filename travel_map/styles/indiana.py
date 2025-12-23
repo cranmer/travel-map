@@ -59,31 +59,32 @@ class IndianaJonesRenderer(BaseRenderer):
 
         return points
 
-    def _split_at_dateline(
+    def _unwrap_longitudes(
         self, points: list[tuple[float, float]]
-    ) -> list[list[tuple[float, float]]]:
-        """Split arc into segments that don't cross the antimeridian."""
+    ) -> list[tuple[float, float]]:
+        """Unwrap longitude values to make them continuous across the dateline."""
         if len(points) < 2:
-            return [points]
+            return points
 
-        segments = []
-        current_segment = [points[0]]
+        unwrapped = [points[0]]
+        offset = 0.0
 
         for i in range(1, len(points)):
-            prev_lon = points[i - 1][1]
-            curr_lon = points[i][1]
+            prev_lon = unwrapped[i - 1][1]
+            curr_lat = points[i][0]
+            curr_lon = points[i][1] + offset
 
-            if abs(curr_lon - prev_lon) > 180:
-                if len(current_segment) > 0:
-                    segments.append(current_segment)
-                current_segment = [points[i]]
-            else:
-                current_segment.append(points[i])
+            delta = curr_lon - prev_lon
+            if delta > 180:
+                offset -= 360
+                curr_lon -= 360
+            elif delta < -180:
+                offset += 360
+                curr_lon += 360
 
-        if len(current_segment) > 0:
-            segments.append(current_segment)
+            unwrapped.append((curr_lat, curr_lon))
 
-        return segments
+        return unwrapped
 
     def _apply_vintage_effect(self, img: Image.Image) -> Image.Image:
         """Apply vintage/sepia effect to an image."""
@@ -184,24 +185,21 @@ class IndianaJonesRenderer(BaseRenderer):
                 to_loc.lat, to_loc.lon,
             )
 
-            # Split at dateline to avoid horizontal line across map
-            segments = self._split_at_dateline(arc_points)
+            # Unwrap longitudes to make continuous across dateline
+            arc_points = self._unwrap_longitudes(arc_points)
 
-            for segment in segments:
-                if len(segment) < 2:
-                    continue
-                arc_coords = [[p[0], p[1]] for p in segment]
+            arc_coords = [[p[0], p[1]] for p in arc_points]
 
-                # Red dashed line (classic Indiana Jones style)
-                folium.PolyLine(
-                    locations=arc_coords,
-                    color=self.path_color,
-                    weight=4,
-                    opacity=0.9,
-                    dash_array="10, 10",
-                ).add_to(m)
+            # Red dashed line (classic Indiana Jones style)
+            folium.PolyLine(
+                locations=arc_coords,
+                color=self.path_color,
+                weight=4,
+                opacity=0.9,
+                dash_array="10, 10",
+            ).add_to(m)
 
-            # Add plane icon at midpoint (use original arc for positioning)
+            # Add plane icon at midpoint
             mid_idx = len(arc_points) // 2
             mid_point = arc_points[mid_idx]
 
