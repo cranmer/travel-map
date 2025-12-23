@@ -5,35 +5,76 @@ from pathlib import Path
 from typing import Optional
 
 from PIL import Image
-from PIL.ExifTags import TAGS, GPSTAGS
+from PIL.ExifTags import TAGS, GPSTAGS, IFD
+
+# Register HEIC support
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except ImportError:
+    pass  # HEIC support not available
 
 
-def _get_exif_data(image: Image.Image) -> dict:
-    """Extract EXIF data from an image."""
+def _get_exif_data(image: Image.Image) -> tuple[dict, dict]:
+    """Extract EXIF data from an image.
+
+    Returns:
+        Tuple of (exif_data dict, gps_data dict).
+    """
     exif_data = {}
+    gps_data = {}
+
+    # Try newer getexif() API first (works with HEIC)
     try:
-        info = image._getexif()
-        if info:
-            for tag_id, value in info.items():
+        exif = image.getexif()
+        if exif:
+            for tag_id, value in exif.items():
                 tag = TAGS.get(tag_id, tag_id)
                 exif_data[tag] = value
+
+            # Get GPS IFD
+            try:
+                gps_ifd = exif.get_ifd(IFD.GPSInfo)
+                if gps_ifd:
+                    for tag_id, value in gps_ifd.items():
+                        tag = GPSTAGS.get(tag_id, tag_id)
+                        gps_data[tag] = value
+            except (KeyError, AttributeError):
+                pass
+
+            # Also try EXIF IFD for date info
+            try:
+                exif_ifd = exif.get_ifd(IFD.Exif)
+                if exif_ifd:
+                    for tag_id, value in exif_ifd.items():
+                        tag = TAGS.get(tag_id, tag_id)
+                        if tag not in exif_data:
+                            exif_data[tag] = value
+            except (KeyError, AttributeError):
+                pass
+
     except (AttributeError, KeyError):
         pass
-    return exif_data
 
+    # Fallback to older _getexif() API
+    if not exif_data:
+        try:
+            info = image._getexif()
+            if info:
+                for tag_id, value in info.items():
+                    tag = TAGS.get(tag_id, tag_id)
+                    exif_data[tag] = value
 
-def _get_gps_info(exif_data: dict) -> Optional[dict]:
-    """Extract GPS info from EXIF data."""
-    gps_info = exif_data.get("GPSInfo")
-    if not gps_info:
-        return None
+                # Extract GPS from old-style EXIF
+                gps_info = exif_data.get("GPSInfo", info.get(34853))
+                if gps_info and isinstance(gps_info, dict):
+                    for key, value in gps_info.items():
+                        tag = GPSTAGS.get(key, key)
+                        gps_data[tag] = value
+        except (AttributeError, KeyError):
+            pass
 
-    gps_data = {}
-    for key, value in gps_info.items():
-        tag = GPSTAGS.get(key, key)
-        gps_data[tag] = value
-
-    return gps_data
+    return exif_data, gps_data
 
 
 def _convert_to_degrees(value) -> float:
@@ -81,7 +122,7 @@ def _get_date_taken(exif_data: dict) -> Optional[datetime]:
         if date_str:
             try:
                 # EXIF date format: "YYYY:MM:DD HH:MM:SS"
-                return datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")
+                return datetime.strptime(str(date_str), "%Y:%m:%d %H:%M:%S")
             except (ValueError, TypeError):
                 continue
 
@@ -99,8 +140,7 @@ def extract_photo_metadata(photo_path: Path) -> Optional[dict]:
     """
     try:
         with Image.open(photo_path) as img:
-            exif_data = _get_exif_data(img)
-            gps_data = _get_gps_info(exif_data)
+            exif_data, gps_data = _get_exif_data(img)
             coords = _get_coordinates(gps_data)
 
             if not coords:

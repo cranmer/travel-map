@@ -1,0 +1,46 @@
+title: Photo Trip
+style: arcs
+output: interactive
+show_dates: true
+date_format: '%b %d, %Y'
+locations:
+- name: Img 6558
+  lat: 46.223133
+  lon: 6.127853
+  date: '2025-01-16'
+- name: Img 7256
+  lat: 53.557064
+  lon: 9.971044
+  date: '2025-02-15'
+- name: Img 8445
+  lat: 9.400631
+  lon: -84.168083
+  date: '2025-03-24'
+- name: Img 0379
+  lat: 31.246608
+  lon: 121.494347
+  date: '2025-04-25'
+- name: Img 1089
+  lat: 22.2927
+  lon: 114.171478
+  date: '2025-04-29'
+- name: Img 2872
+  lat: 48.859336
+  lon: 2.266983
+  date: '2025-07-05'
+- name: Img 3211
+  lat: 43.280267
+  lon: 5.353528
+  date: '2025-07-09'
+- name: Img 4722
+  lat: 40.731322
+  lon: -73.996942
+  date: '2025-08-09'
+- name: Img 5858
+  lat: 49.385022
+  lon: 8.568261
+  date: '2025-09-15'
+- name: Img 7607
+  lat: 34.128486
+  lon: -118.1167
+  date: '2025-11-10'
