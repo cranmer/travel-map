@@ -102,28 +102,33 @@ class ArcsRenderer(BaseRenderer):
         bounds = self._get_bounds()
         m.fit_bounds([[bounds[0], bounds[2]], [bounds[1], bounds[3]]])
 
-        # Track shifted positions for duplicate markers at dateline crossings
-        # Key: location name, Value: shifted longitude
-        shifted_by_name = {}
+        # Track longitude offsets for locations that cross the dateline
+        # Key: location name, Value: longitude offset (e.g., -360 or +360)
+        lon_offset_by_name = {}
 
         # Draw arcs first (so markers appear on top)
         routes = self.config.get_routes()
         for from_loc, to_loc in routes:
-            # Check if from_loc has a shifted position (for multi-leg trips)
-            from_lon = shifted_by_name.get(from_loc.name, from_loc.lon)
+            # Get the offset for from_loc (for multi-leg trips)
+            from_offset = lon_offset_by_name.get(from_loc.name, 0)
+            from_lon = from_loc.lon + from_offset
+
+            # Apply same offset to destination initially
+            to_lon = to_loc.lon + from_offset
 
             arc_points = self._interpolate_great_circle(
                 from_loc.lat, from_lon,
-                to_loc.lat, to_loc.lon,
+                to_loc.lat, to_lon,
             )
 
             # Unwrap longitudes to make continuous across dateline
             arc_points = self._unwrap_longitudes(arc_points)
 
-            # Track the endpoint longitude (may be shifted)
+            # Calculate the total offset for the destination
             end_lon = arc_points[-1][1]
-            if end_lon != to_loc.lon:
-                shifted_by_name[to_loc.name] = end_lon
+            to_offset = end_lon - to_loc.lon
+            if abs(to_offset) > 1:  # Only track significant offsets
+                lon_offset_by_name[to_loc.name] = to_offset
 
             # Convert to [lat, lon] format for folium
             arc_coords = [[p[0], p[1]] for p in arc_points]
@@ -139,11 +144,11 @@ class ArcsRenderer(BaseRenderer):
                 pulse_color="#ffffff",
             ).add_to(m)
 
-        # Convert shifted_by_name to shifted_positions (by index) for markers
+        # Convert to shifted_positions (by index) for markers
         shifted_positions = {}
         for idx, loc in enumerate(self.config.locations):
-            if loc.name in shifted_by_name:
-                shifted_positions[idx] = shifted_by_name[loc.name]
+            if loc.name in lon_offset_by_name:
+                shifted_positions[idx] = loc.lon + lon_offset_by_name[loc.name]
 
         # Add markers
         for i, loc in enumerate(self.config.locations):
