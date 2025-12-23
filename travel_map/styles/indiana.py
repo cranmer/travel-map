@@ -33,8 +33,11 @@ class IndianaJonesRenderer(BaseRenderer):
         lat2_r, lon2_r = np.radians(lat2), np.radians(lon2)
 
         d = np.arccos(
-            np.sin(lat1_r) * np.sin(lat2_r) +
-            np.cos(lat1_r) * np.cos(lat2_r) * np.cos(lon2_r - lon1_r)
+            np.clip(
+                np.sin(lat1_r) * np.sin(lat2_r) +
+                np.cos(lat1_r) * np.cos(lat2_r) * np.cos(lon2_r - lon1_r),
+                -1, 1
+            )
         )
 
         if d < 1e-10:
@@ -55,6 +58,32 @@ class IndianaJonesRenderer(BaseRenderer):
             points.append((lat, lon))
 
         return points
+
+    def _split_at_dateline(
+        self, points: list[tuple[float, float]]
+    ) -> list[list[tuple[float, float]]]:
+        """Split arc into segments that don't cross the antimeridian."""
+        if len(points) < 2:
+            return [points]
+
+        segments = []
+        current_segment = [points[0]]
+
+        for i in range(1, len(points)):
+            prev_lon = points[i - 1][1]
+            curr_lon = points[i][1]
+
+            if abs(curr_lon - prev_lon) > 180:
+                if len(current_segment) > 0:
+                    segments.append(current_segment)
+                current_segment = [points[i]]
+            else:
+                current_segment.append(points[i])
+
+        if len(current_segment) > 0:
+            segments.append(current_segment)
+
+        return segments
 
     def _apply_vintage_effect(self, img: Image.Image) -> Image.Image:
         """Apply vintage/sepia effect to an image."""
@@ -154,18 +183,25 @@ class IndianaJonesRenderer(BaseRenderer):
                 from_loc.lat, from_loc.lon,
                 to_loc.lat, to_loc.lon,
             )
-            arc_coords = [[p[0], p[1]] for p in arc_points]
 
-            # Red dashed line (classic Indiana Jones style)
-            folium.PolyLine(
-                locations=arc_coords,
-                color=self.path_color,
-                weight=4,
-                opacity=0.9,
-                dash_array="10, 10",
-            ).add_to(m)
+            # Split at dateline to avoid horizontal line across map
+            segments = self._split_at_dateline(arc_points)
 
-            # Add plane icon at midpoint
+            for segment in segments:
+                if len(segment) < 2:
+                    continue
+                arc_coords = [[p[0], p[1]] for p in segment]
+
+                # Red dashed line (classic Indiana Jones style)
+                folium.PolyLine(
+                    locations=arc_coords,
+                    color=self.path_color,
+                    weight=4,
+                    opacity=0.9,
+                    dash_array="10, 10",
+                ).add_to(m)
+
+            # Add plane icon at midpoint (use original arc for positioning)
             mid_idx = len(arc_points) // 2
             mid_point = arc_points[mid_idx]
 

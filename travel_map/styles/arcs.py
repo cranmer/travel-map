@@ -31,8 +31,11 @@ class ArcsRenderer(BaseRenderer):
 
         # Calculate great circle distance
         d = np.arccos(
-            np.sin(lat1_r) * np.sin(lat2_r) +
-            np.cos(lat1_r) * np.cos(lat2_r) * np.cos(lon2_r - lon1_r)
+            np.clip(
+                np.sin(lat1_r) * np.sin(lat2_r) +
+                np.cos(lat1_r) * np.cos(lat2_r) * np.cos(lon2_r - lon1_r),
+                -1, 1
+            )
         )
 
         if d < 1e-10:
@@ -54,6 +57,39 @@ class ArcsRenderer(BaseRenderer):
 
         return points
 
+    def _split_at_dateline(
+        self, points: list[tuple[float, float]]
+    ) -> list[list[tuple[float, float]]]:
+        """Split arc into segments that don't cross the antimeridian.
+
+        This prevents Folium from drawing a horizontal line across the map
+        when a great circle arc crosses the ±180° longitude line.
+        """
+        if len(points) < 2:
+            return [points]
+
+        segments = []
+        current_segment = [points[0]]
+
+        for i in range(1, len(points)):
+            prev_lon = points[i - 1][1]
+            curr_lon = points[i][1]
+
+            # Detect dateline crossing (large longitude jump)
+            if abs(curr_lon - prev_lon) > 180:
+                # Save current segment and start a new one
+                if len(current_segment) > 0:
+                    segments.append(current_segment)
+                current_segment = [points[i]]
+            else:
+                current_segment.append(points[i])
+
+        # Don't forget the last segment
+        if len(current_segment) > 0:
+            segments.append(current_segment)
+
+        return segments
+
     def render_interactive(self) -> str:
         """Render an interactive Folium map with markers and animated arcs."""
         center = self._get_center()
@@ -73,19 +109,26 @@ class ArcsRenderer(BaseRenderer):
                 from_loc.lat, from_loc.lon,
                 to_loc.lat, to_loc.lon,
             )
-            # Convert to [lat, lon] format for folium
-            arc_coords = [[p[0], p[1]] for p in arc_points]
 
-            # Animated ant path
-            AntPath(
-                locations=arc_coords,
-                color=self.arc_color,
-                weight=3,
-                opacity=0.8,
-                delay=1000,
-                dash_array=[10, 20],
-                pulse_color="#ffffff",
-            ).add_to(m)
+            # Split at dateline to avoid horizontal line across map
+            segments = self._split_at_dateline(arc_points)
+
+            for segment in segments:
+                if len(segment) < 2:
+                    continue
+                # Convert to [lat, lon] format for folium
+                arc_coords = [[p[0], p[1]] for p in segment]
+
+                # Animated ant path
+                AntPath(
+                    locations=arc_coords,
+                    color=self.arc_color,
+                    weight=3,
+                    opacity=0.8,
+                    delay=1000,
+                    dash_array=[10, 20],
+                    pulse_color="#ffffff",
+                ).add_to(m)
 
         # Add markers
         for i, loc in enumerate(self.config.locations):
