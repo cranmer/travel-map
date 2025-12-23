@@ -177,6 +177,9 @@ class IndianaJonesRenderer(BaseRenderer):
         bounds = self._get_bounds()
         m.fit_bounds([[bounds[0], bounds[2]], [bounds[1], bounds[3]]])
 
+        # Track shifted positions for duplicate markers at dateline crossings
+        shifted_positions = {}
+
         # Draw red dotted flight paths
         routes = self.config.get_routes()
         for from_loc, to_loc in routes:
@@ -187,6 +190,14 @@ class IndianaJonesRenderer(BaseRenderer):
 
             # Unwrap longitudes to make continuous across dateline
             arc_points = self._unwrap_longitudes(arc_points)
+
+            # Check if endpoint longitude was shifted (outside [-180, 180])
+            end_lon = arc_points[-1][1]
+            if end_lon > 180 or end_lon < -180:
+                for idx, loc in enumerate(self.config.locations):
+                    if loc.name == to_loc.name:
+                        shifted_positions[idx] = end_lon
+                        break
 
             arc_coords = [[p[0], p[1]] for p in arc_points]
 
@@ -232,7 +243,7 @@ class IndianaJonesRenderer(BaseRenderer):
             ).add_to(m)
 
         # Add location markers (red circles with vintage feel)
-        for loc in self.config.locations:
+        for i, loc in enumerate(self.config.locations):
             popup_content = f"<b style='font-family: Georgia, serif;'>{loc.name}</b>"
             if loc.label:
                 popup_content += f"<br><i>{loc.label}</i>"
@@ -251,6 +262,21 @@ class IndianaJonesRenderer(BaseRenderer):
                 fill_opacity=0.9,
                 weight=2,
             ).add_to(m)
+
+            # Add duplicate marker at shifted position if this location crosses dateline
+            if i in shifted_positions:
+                shifted_lon = shifted_positions[i]
+                folium.CircleMarker(
+                    location=[loc.lat, shifted_lon],
+                    radius=8,
+                    popup=folium.Popup(popup_content, max_width=200),
+                    tooltip=loc.name,
+                    color=self.path_color,
+                    fill=True,
+                    fill_color=self.path_color,
+                    fill_opacity=0.9,
+                    weight=2,
+                ).add_to(m)
 
         # Vintage-style title
         title_html = f'''

@@ -102,6 +102,10 @@ class ArcsRenderer(BaseRenderer):
         bounds = self._get_bounds()
         m.fit_bounds([[bounds[0], bounds[2]], [bounds[1], bounds[3]]])
 
+        # Track shifted positions for duplicate markers at dateline crossings
+        # Key: location index, Value: shifted longitude
+        shifted_positions = {}
+
         # Draw arcs first (so markers appear on top)
         routes = self.config.get_routes()
         for from_loc, to_loc in routes:
@@ -112,6 +116,15 @@ class ArcsRenderer(BaseRenderer):
 
             # Unwrap longitudes to make continuous across dateline
             arc_points = self._unwrap_longitudes(arc_points)
+
+            # Check if endpoint longitude was shifted (outside [-180, 180])
+            end_lon = arc_points[-1][1]
+            if end_lon > 180 or end_lon < -180:
+                # Find the index of this destination in locations
+                for idx, loc in enumerate(self.config.locations):
+                    if loc.name == to_loc.name:
+                        shifted_positions[idx] = end_lon
+                        break
 
             # Convert to [lat, lon] format for folium
             arc_coords = [[p[0], p[1]] for p in arc_points]
@@ -162,6 +175,30 @@ class ArcsRenderer(BaseRenderer):
                     icon_anchor=(10, 10),
                 ),
             ).add_to(m)
+
+            # Add duplicate marker at shifted position if this location crosses dateline
+            if i in shifted_positions:
+                shifted_lon = shifted_positions[i]
+                folium.CircleMarker(
+                    location=[loc.lat, shifted_lon],
+                    radius=10,
+                    popup=folium.Popup(popup_content, max_width=200),
+                    tooltip=tooltip,
+                    color=self.marker_color,
+                    fill=True,
+                    fill_color=self.marker_color,
+                    fill_opacity=0.8,
+                    weight=2,
+                ).add_to(m)
+
+                folium.Marker(
+                    location=[loc.lat, shifted_lon],
+                    icon=folium.DivIcon(
+                        html=f'<div style="font-size: 10px; color: white; font-weight: bold; text-align: center; line-height: 20px;">{i + 1}</div>',
+                        icon_size=(20, 20),
+                        icon_anchor=(10, 10),
+                    ),
+                ).add_to(m)
 
         # Add home marker if routes_from_home is enabled
         if self.config.routes_from_home:
