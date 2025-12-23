@@ -4,6 +4,7 @@ output: interactive
 show_dates: true
 date_format: '%b %d, %Y'
 routes_from_home: true
+trip_gap_days: 7  # Locations within this many days are grouped as one trip
 # Optional: customize home location (defaults to Madison, WI)
 # home:
 #   name: "My Home"

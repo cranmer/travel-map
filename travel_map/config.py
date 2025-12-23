@@ -74,6 +74,7 @@ class TravelConfig:
     routes: list[Route] = field(default_factory=list)
     home: Optional[Location] = None
     routes_from_home: bool = False
+    trip_gap_days: int = 7  # Days apart to consider separate trips
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -92,14 +93,63 @@ class TravelConfig:
         """Get the home location, using default if not specified."""
         return self.home if self.home else DEFAULT_HOME
 
+    def _group_into_trips(self, locations: list[Location]) -> list[list[Location]]:
+        """Group locations into trips based on date proximity.
+
+        Locations within trip_gap_days of each other are considered the same trip.
+        """
+        from datetime import timedelta
+
+        if not locations:
+            return []
+
+        # Sort by date
+        sorted_locs = sorted(locations, key=lambda x: x.date)
+        trips = []
+        current_trip = [sorted_locs[0]]
+
+        for i in range(1, len(sorted_locs)):
+            prev_date = sorted_locs[i - 1].date
+            curr_date = sorted_locs[i].date
+            gap = (curr_date - prev_date).days
+
+            if gap <= self.trip_gap_days:
+                # Same trip - add to current
+                current_trip.append(sorted_locs[i])
+            else:
+                # New trip - save current and start new
+                trips.append(current_trip)
+                current_trip = [sorted_locs[i]]
+
+        # Don't forget the last trip
+        trips.append(current_trip)
+        return trips
+
     def get_routes(self) -> list[tuple[Location, Location]]:
         """Get routes as location pairs. Auto-generates from dates if not specified."""
         location_map = {loc.name: loc for loc in self.locations}
 
-        # If routes_from_home is enabled, generate routes from home to each location
+        # If routes_from_home is enabled, generate smart trip-based routes
         if self.routes_from_home:
             home = self.get_home()
-            return [(home, loc) for loc in self.locations]
+            dated_locations = [loc for loc in self.locations if loc.date]
+
+            if not dated_locations:
+                # No dates - just draw from home to each location
+                return [(home, loc) for loc in self.locations]
+
+            # Group into trips
+            trips = self._group_into_trips(dated_locations)
+            routes = []
+
+            for trip in trips:
+                # Arc from home to first stop of trip
+                routes.append((home, trip[0]))
+                # Sequential arcs within the trip
+                for i in range(len(trip) - 1):
+                    routes.append((trip[i], trip[i + 1]))
+
+            return routes
 
         if self.routes:
             # Use explicit routes
@@ -141,6 +191,7 @@ class TravelConfig:
             routes=routes,
             home=home,
             routes_from_home=data.get("routes_from_home", False),
+            trip_gap_days=data.get("trip_gap_days", 7),
         )
 
     @classmethod
