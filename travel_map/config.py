@@ -53,6 +53,14 @@ class Route:
         )
 
 
+# Default home location (Madison, Wisconsin)
+DEFAULT_HOME = Location(
+    name="Madison, WI",
+    lat=43.0731,
+    lon=-89.4012,
+)
+
+
 @dataclass
 class TravelConfig:
     """Complete travel map configuration."""
@@ -64,6 +72,8 @@ class TravelConfig:
     show_dates: bool = True
     date_format: str = "%b %d"
     routes: list[Route] = field(default_factory=list)
+    home: Optional[Location] = None
+    routes_from_home: bool = False
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -78,9 +88,18 @@ class TravelConfig:
         if not self.locations:
             raise ValueError("At least one location is required")
 
+    def get_home(self) -> Location:
+        """Get the home location, using default if not specified."""
+        return self.home if self.home else DEFAULT_HOME
+
     def get_routes(self) -> list[tuple[Location, Location]]:
         """Get routes as location pairs. Auto-generates from dates if not specified."""
         location_map = {loc.name: loc for loc in self.locations}
+
+        # If routes_from_home is enabled, generate routes from home to each location
+        if self.routes_from_home:
+            home = self.get_home()
+            return [(home, loc) for loc in self.locations]
 
         if self.routes:
             # Use explicit routes
@@ -107,6 +126,11 @@ class TravelConfig:
         locations = [Location.from_dict(loc) for loc in data.get("locations", [])]
         routes = [Route.from_dict(r) for r in data.get("routes", [])]
 
+        # Parse home location if provided
+        home = None
+        if "home" in data and data["home"]:
+            home = Location.from_dict(data["home"])
+
         return cls(
             title=data.get("title", "My Travel Map"),
             locations=locations,
@@ -115,6 +139,8 @@ class TravelConfig:
             show_dates=data.get("show_dates", True),
             date_format=data.get("date_format", "%b %d"),
             routes=routes,
+            home=home,
+            routes_from_home=data.get("routes_from_home", False),
         )
 
     @classmethod

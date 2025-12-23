@@ -68,14 +68,22 @@ class BaseRenderer(ABC):
             img.save(buf, format="PNG")
             return buf.getvalue()
 
+    def _get_all_locations(self) -> list:
+        """Get all locations including home if routes_from_home is enabled."""
+        locations = list(self.config.locations)
+        if self.config.routes_from_home:
+            locations.append(self.config.get_home())
+        return locations
+
     def _get_bounds(self) -> tuple[float, float, float, float]:
         """Get map bounds from locations.
 
         Returns:
             Tuple of (min_lat, max_lat, min_lon, max_lon).
         """
-        lats = [loc.lat for loc in self.config.locations]
-        lons = [loc.lon for loc in self.config.locations]
+        locations = self._get_all_locations()
+        lats = [loc.lat for loc in locations]
+        lons = [loc.lon for loc in locations]
 
         padding = 2.0  # degrees of padding
         return (
@@ -91,8 +99,9 @@ class BaseRenderer(ABC):
         Returns:
             Tuple of (lat, lon) for the center.
         """
-        lats = [loc.lat for loc in self.config.locations]
-        lons = [loc.lon for loc in self.config.locations]
+        locations = self._get_all_locations()
+        lats = [loc.lat for loc in locations]
+        lons = [loc.lon for loc in locations]
         return (sum(lats) / len(lats), sum(lons) / len(lons))
 
     def _format_date(self, location) -> str:

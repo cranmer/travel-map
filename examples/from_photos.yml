@@ -3,6 +3,12 @@ style: arcs
 output: interactive
 show_dates: true
 date_format: '%b %d, %Y'
+routes_from_home: true
+# Optional: customize home location (defaults to Madison, WI)
+# home:
+#   name: "My Home"
+#   lat: 43.0731
+#   lon: -89.4012
 locations:
 - name: Img 6558
   lat: 46.223133

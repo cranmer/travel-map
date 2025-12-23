@@ -41,5 +41,7 @@ Thumbs.db
 *.png
 *.svg
 !examples/
+photos/
+
 # pixi environments
 .pixi

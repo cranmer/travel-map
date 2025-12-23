@@ -123,6 +123,16 @@ class ArcsRenderer(BaseRenderer):
                 ),
             ).add_to(m)
 
+        # Add home marker if routes_from_home is enabled
+        if self.config.routes_from_home:
+            home = self.config.get_home()
+            folium.Marker(
+                location=[home.lat, home.lon],
+                popup=folium.Popup(f"<b>{home.name}</b><br>Home", max_width=200),
+                tooltip=f"{home.name} (Home)",
+                icon=folium.Icon(color="green", icon="home", prefix="fa"),
+            ).add_to(m)
+
         # Add title
         title_html = f'''
         <div style="position: fixed;
