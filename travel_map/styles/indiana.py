@@ -130,17 +130,17 @@ class IndianaJonesRenderer(BaseRenderer):
         """Render an interactive map with vintage styling."""
         center = self._get_center()
 
-        # Use Stamen Watercolor for vintage look (now via Stadia Maps)
+        # Use Esri World Topo Map for vintage cartographic look (free, no auth)
         m = folium.Map(
             location=center,
             zoom_start=4,
             tiles=None,
         )
 
-        # Add vintage-style tile layer
+        # Add vintage-style tile layer (Esri World Topo has nice cartographic feel)
         folium.TileLayer(
-            tiles="https://tiles.stadiamaps.com/tiles/stamen_watercolor/{z}/{x}/{y}.jpg",
-            attr='&copy; <a href="https://stadiamaps.com/">Stadia Maps</a>, &copy; <a href="https://stamen.com/">Stamen Design</a>',
+            tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+            attr='Tiles &copy; Esri',
             name="Vintage",
         ).add_to(m)
 
