@@ -1,0 +1,234 @@
+"""Arcs style renderer - pins with curved connection lines."""
+
+import folium
+from folium.plugins import AntPath
+import matplotlib.pyplot as plt
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+from PIL import Image
+import io
+import numpy as np
+
+from .base import BaseRenderer
+from ..config import TravelConfig
+
+
+class ArcsRenderer(BaseRenderer):
+    """Render maps with pin markers and curved arcs connecting locations."""
+
+    def __init__(self, config: TravelConfig):
+        super().__init__(config)
+        self.marker_color = "#3498db"  # Blue markers
+        self.arc_color = "#e74c3c"  # Red arcs
+
+    def _interpolate_great_circle(
+        self, lat1: float, lon1: float, lat2: float, lon2: float, num_points: int = 50
+    ) -> list[tuple[float, float]]:
+        """Interpolate points along a great circle arc."""
+        # Convert to radians
+        lat1_r, lon1_r = np.radians(lat1), np.radians(lon1)
+        lat2_r, lon2_r = np.radians(lat2), np.radians(lon2)
+
+        # Calculate great circle distance
+        d = np.arccos(
+            np.sin(lat1_r) * np.sin(lat2_r) +
+            np.cos(lat1_r) * np.cos(lat2_r) * np.cos(lon2_r - lon1_r)
+        )
+
+        if d < 1e-10:
+            return [(lat1, lon1), (lat2, lon2)]
+
+        points = []
+        for i in range(num_points + 1):
+            f = i / num_points
+            A = np.sin((1 - f) * d) / np.sin(d)
+            B = np.sin(f * d) / np.sin(d)
+
+            x = A * np.cos(lat1_r) * np.cos(lon1_r) + B * np.cos(lat2_r) * np.cos(lon2_r)
+            y = A * np.cos(lat1_r) * np.sin(lon1_r) + B * np.cos(lat2_r) * np.sin(lon2_r)
+            z = A * np.sin(lat1_r) + B * np.sin(lat2_r)
+
+            lat = np.degrees(np.arctan2(z, np.sqrt(x**2 + y**2)))
+            lon = np.degrees(np.arctan2(y, x))
+            points.append((lat, lon))
+
+        return points
+
+    def render_interactive(self) -> str:
+        """Render an interactive Folium map with markers and animated arcs."""
+        center = self._get_center()
+        m = folium.Map(
+            location=center,
+            zoom_start=4,
+            tiles="CartoDB positron",
+        )
+
+        bounds = self._get_bounds()
+        m.fit_bounds([[bounds[0], bounds[2]], [bounds[1], bounds[3]]])
+
+        # Draw arcs first (so markers appear on top)
+        routes = self.config.get_routes()
+        for from_loc, to_loc in routes:
+            arc_points = self._interpolate_great_circle(
+                from_loc.lat, from_loc.lon,
+                to_loc.lat, to_loc.lon,
+            )
+            # Convert to [lat, lon] format for folium
+            arc_coords = [[p[0], p[1]] for p in arc_points]
+
+            # Animated ant path
+            AntPath(
+                locations=arc_coords,
+                color=self.arc_color,
+                weight=3,
+                opacity=0.8,
+                delay=1000,
+                dash_array=[10, 20],
+                pulse_color="#ffffff",
+            ).add_to(m)
+
+        # Add markers
+        for i, loc in enumerate(self.config.locations):
+            popup_content = f"<b>{loc.name}</b>"
+            if loc.label:
+                popup_content += f"<br>{loc.label}"
+            date_str = self._format_date(loc)
+            if date_str:
+                popup_content += f"<br><i>{date_str}</i>"
+
+            tooltip = loc.name
+            if date_str:
+                tooltip += f" ({date_str})"
+
+            # Use numbered markers to show order
+            folium.CircleMarker(
+                location=[loc.lat, loc.lon],
+                radius=10,
+                popup=folium.Popup(popup_content, max_width=200),
+                tooltip=tooltip,
+                color=self.marker_color,
+                fill=True,
+                fill_color=self.marker_color,
+                fill_opacity=0.8,
+                weight=2,
+            ).add_to(m)
+
+            # Add number label
+            folium.Marker(
+                location=[loc.lat, loc.lon],
+                icon=folium.DivIcon(
+                    html=f'<div style="font-size: 10px; color: white; font-weight: bold; text-align: center; line-height: 20px;">{i + 1}</div>',
+                    icon_size=(20, 20),
+                    icon_anchor=(10, 10),
+                ),
+            ).add_to(m)
+
+        # Add title
+        title_html = f'''
+        <div style="position: fixed;
+                    top: 10px; left: 50px;
+                    z-index: 1000;
+                    background-color: white;
+                    padding: 10px;
+                    border-radius: 5px;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                    font-family: Arial, sans-serif;
+                    font-size: 16px;
+                    font-weight: bold;">
+            {self.config.title}
+        </div>
+        '''
+        m.get_root().html.add_child(folium.Element(title_html))
+
+        return m._repr_html_()
+
+    def render_static(self, width: int = 1200, height: int = 800) -> Image.Image:
+        """Render a static map with markers and curved arcs."""
+        fig_width = width / 100
+        fig_height = height / 100
+
+        bounds = self._get_bounds()
+        center_lon = (bounds[2] + bounds[3]) / 2
+
+        fig = plt.figure(figsize=(fig_width, fig_height))
+        ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree(central_longitude=center_lon))
+
+        ax.set_extent([bounds[2], bounds[3], bounds[0], bounds[1]], crs=ccrs.PlateCarree())
+
+        # Add map features
+        ax.add_feature(cfeature.LAND, facecolor="#f5f5f5")
+        ax.add_feature(cfeature.OCEAN, facecolor="#e8f4f8")
+        ax.add_feature(cfeature.COASTLINE, linewidth=0.5)
+        ax.add_feature(cfeature.BORDERS, linewidth=0.3, linestyle=":")
+
+        # Draw arcs
+        routes = self.config.get_routes()
+        for from_loc, to_loc in routes:
+            arc_points = self._interpolate_great_circle(
+                from_loc.lat, from_loc.lon,
+                to_loc.lat, to_loc.lon,
+            )
+            lats = [p[0] for p in arc_points]
+            lons = [p[1] for p in arc_points]
+
+            ax.plot(
+                lons, lats,
+                color=self.arc_color,
+                linewidth=2.5,
+                transform=ccrs.PlateCarree(),
+                zorder=4,
+                alpha=0.8,
+            )
+
+        # Plot markers
+        for i, loc in enumerate(self.config.locations):
+            ax.plot(
+                loc.lon, loc.lat,
+                marker="o",
+                color=self.marker_color,
+                markersize=15,
+                transform=ccrs.PlateCarree(),
+                zorder=5,
+                markeredgecolor="white",
+                markeredgewidth=2,
+            )
+
+            # Add number inside marker
+            ax.text(
+                loc.lon, loc.lat,
+                str(i + 1),
+                transform=ccrs.PlateCarree(),
+                fontsize=8,
+                ha="center",
+                va="center",
+                color="white",
+                fontweight="bold",
+                zorder=6,
+            )
+
+            # Add label
+            label = loc.name
+            date_str = self._format_date(loc)
+            if date_str:
+                label += f"\n{date_str}"
+
+            ax.text(
+                loc.lon, loc.lat + 1.0,
+                label,
+                transform=ccrs.PlateCarree(),
+                fontsize=9,
+                ha="center",
+                va="bottom",
+                fontweight="bold",
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
+                zorder=6,
+            )
+
+        ax.set_title(self.config.title, fontsize=16, fontweight="bold", pad=10)
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=100, bbox_inches="tight", facecolor="white")
+        plt.close(fig)
+        buf.seek(0)
+
+        return Image.open(buf).copy()
