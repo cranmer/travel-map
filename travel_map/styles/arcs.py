@@ -109,20 +109,21 @@ class ArcsRenderer(BaseRenderer):
         # Draw arcs first (so markers appear on top)
         routes = self.config.get_routes()
         for from_loc, to_loc in routes:
-            # Get the offset for from_loc (for multi-leg trips)
+            # Get the offset for from_loc (for multi-leg trips crossing dateline)
             from_offset = lon_offset_by_name.get(from_loc.name, 0)
-            from_lon = from_loc.lon + from_offset
-
-            # Apply same offset to destination initially
-            to_lon = to_loc.lon + from_offset
 
             arc_points = self._interpolate_great_circle(
-                from_loc.lat, from_lon,
-                to_loc.lat, to_lon,
+                from_loc.lat, from_loc.lon,
+                to_loc.lat, to_loc.lon,
             )
 
             # Unwrap longitudes to make continuous across dateline
             arc_points = self._unwrap_longitudes(arc_points)
+
+            # If we have a from_offset, apply it to all points
+            # (the interpolation normalizes longitudes, so we need to shift them back)
+            if abs(from_offset) > 1:
+                arc_points = [(lat, lon + from_offset) for lat, lon in arc_points]
 
             # Calculate the total offset for the destination
             end_lon = arc_points[-1][1]
