@@ -333,24 +333,25 @@ class IndianaJonesRenderer(BaseRenderer):
                 weight=2,
             ).add_to(m)
 
-        # Vintage-style title
-        title_html = f'''
-        <div style="position: fixed;
-                    top: 10px; left: 50px;
-                    z-index: 1000;
-                    background-color: #f4e4bc;
-                    padding: 12px 20px;
-                    border-radius: 3px;
-                    border: 2px solid #8b7355;
-                    box-shadow: 3px 3px 5px rgba(0,0,0,0.3);
-                    font-family: 'Georgia', serif;
-                    font-size: 18px;
-                    font-weight: bold;
-                    color: #5d4e37;">
-            {self.config.title}
-        </div>
-        '''
-        m.get_root().html.add_child(folium.Element(title_html))
+        # Vintage-style title if specified
+        if self.config.title:
+            title_html = f'''
+            <div style="position: fixed;
+                        top: 10px; left: 50px;
+                        z-index: 1000;
+                        background-color: #f4e4bc;
+                        padding: 12px 20px;
+                        border-radius: 3px;
+                        border: 2px solid #8b7355;
+                        box-shadow: 3px 3px 5px rgba(0,0,0,0.3);
+                        font-family: 'Georgia', serif;
+                        font-size: 18px;
+                        font-weight: bold;
+                        color: #5d4e37;">
+                {self.config.title}
+            </div>
+            '''
+            m.get_root().html.add_child(folium.Element(title_html))
 
         return m._repr_html_()
 

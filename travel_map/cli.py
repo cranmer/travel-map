@@ -90,6 +90,59 @@ def generate(config_file, output, style, output_format, width, height):
         click.echo(f"Saved to: {output_path}")
 
 
+def _generate_embed_html(renderer) -> str:
+    """Generate embeddable HTML snippet from a Folium map.
+
+    Returns HTML that can be inserted into an existing page's <body>.
+    Includes necessary CSS/JS and the map container.
+    """
+    import html
+    import re
+
+    # Folium's _repr_html_() returns an iframe with srcdoc containing escaped HTML
+    full_output = renderer.render_interactive()
+
+    # Extract the srcdoc content from the iframe
+    srcdoc_match = re.search(r'srcdoc="([^"]*)"', full_output, re.DOTALL)
+    if srcdoc_match:
+        # Decode HTML entities to get the actual HTML
+        map_html = html.unescape(srcdoc_match.group(1))
+    else:
+        # Fallback - maybe it's already plain HTML
+        map_html = full_output
+
+    # Extract head content (CSS/JS includes)
+    head_match = re.search(r'<head>(.*?)</head>', map_html, re.DOTALL)
+    head_content = head_match.group(1).strip() if head_match else ""
+
+    # Extract body content (map div)
+    body_match = re.search(r'<body>(.*?)</body>', map_html, re.DOTALL)
+    body_content = body_match.group(1).strip() if body_match else ""
+
+    # Extract scripts after </body> (map initialization)
+    # Folium puts the map setup scripts after the body
+    after_body_match = re.search(r'</body>(.*?)</html>', map_html, re.DOTALL)
+    scripts_content = after_body_match.group(1).strip() if after_body_match else ""
+
+    # Build embeddable snippet with clear sections
+    embed_html = f"""<!-- ========== TRAVEL MAP EMBED - START ========== -->
+
+<!-- Add these to your <head> section: -->
+{head_content}
+
+<!-- Add this to your <body> where you want the map: -->
+<div class="travel-map-container" style="width: 100%; height: 600px; position: relative;">
+{body_content}
+</div>
+
+<!-- Map initialization scripts (add at end of <body> or after the map container): -->
+{scripts_content}
+
+<!-- ========== TRAVEL MAP EMBED - END ========== -->
+"""
+    return embed_html
+
+
 @cli.command()
 @click.argument("config_file", type=click.Path(exists=True))
 @click.option(
@@ -102,7 +155,12 @@ def generate(config_file, output, style, output_format, width, height):
     type=click.Path(),
     help="Output HTML file path. If not specified, saves to examples/{style}_example.html",
 )
-def preview(config_file, style, output):
+@click.option(
+    "--embed",
+    is_flag=True,
+    help="Generate embeddable HTML snippet (for inserting into another page).",
+)
+def preview(config_file, style, output, embed):
     """Preview a map in your default browser."""
     config = TravelConfig.from_yaml(config_file)
 
@@ -118,8 +176,14 @@ def preview(config_file, style, output):
 
     renderer = renderer_class(config)
 
-    click.echo(f"Generating {config.style} preview...")
-    html = renderer.render_interactive()
+    click.echo(f"Generating {config.style} {'embed snippet' if embed else 'preview'}...")
+
+    if embed:
+        html = _generate_embed_html(renderer)
+        suffix = "_embed.html"
+    else:
+        html = renderer.render_interactive()
+        suffix = "_example.html"
 
     # Determine output path
     if output:
@@ -129,15 +193,19 @@ def preview(config_file, style, output):
         config_path = Path(config_file)
         examples_dir = config_path.parent
         style_name = config.style.replace("_", "-")
-        output_path = examples_dir / f"{style_name}_example.html"
+        output_path = examples_dir / f"{style_name}{suffix}"
 
     # Save HTML file
     with open(output_path, "w") as f:
         f.write(html)
 
     click.echo(f"Saved to: {output_path}")
-    click.echo(f"Opening preview in browser...")
-    webbrowser.open(f"file://{output_path.absolute()}")
+
+    if not embed:
+        click.echo(f"Opening preview in browser...")
+        webbrowser.open(f"file://{output_path.absolute()}")
+    else:
+        click.echo("Embed snippet ready - copy the contents into your webpage.")
 
 
 @cli.command()

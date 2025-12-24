@@ -64,22 +64,23 @@ class PinsRenderer(BaseRenderer):
                 icon=folium.Icon(color="green", icon="home", prefix="fa"),
             ).add_to(m)
 
-        # Add title
-        title_html = f'''
-        <div style="position: fixed;
-                    top: 10px; left: 50px;
-                    z-index: 1000;
-                    background-color: white;
-                    padding: 10px;
-                    border-radius: 5px;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-                    font-family: Arial, sans-serif;
-                    font-size: 16px;
-                    font-weight: bold;">
-            {self.config.title}
-        </div>
-        '''
-        m.get_root().html.add_child(folium.Element(title_html))
+        # Add title if specified
+        if self.config.title:
+            title_html = f'''
+            <div style="position: fixed;
+                        top: 10px; left: 50px;
+                        z-index: 1000;
+                        background-color: white;
+                        padding: 10px;
+                        border-radius: 5px;
+                        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                        font-family: Arial, sans-serif;
+                        font-size: 16px;
+                        font-weight: bold;">
+                {self.config.title}
+            </div>
+            '''
+            m.get_root().html.add_child(folium.Element(title_html))
 
         return m._repr_html_()
 
