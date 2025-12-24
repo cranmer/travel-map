@@ -205,19 +205,23 @@ class WorldlineThreejsRenderer(BaseRenderer):
 
         loc_times = {loc.name: t for loc, t in zip(locations, normalized_times)}
 
-        # First pass: calculate longitude offsets for dateline handling (same as Plotly)
+        # First pass: calculate longitude offsets for dateline handling
+        # Use ORIGINAL coordinates, then shift the result
         lon_offset_by_name = {}
         routes = self.config.get_routes()
         for from_loc, to_loc in routes:
             from_offset = lon_offset_by_name.get(from_loc.name, 0)
+            # Check if this should go westward using the effective starting longitude
             effective_from_lon = from_loc.lon + from_offset
             force_westward = self._should_go_westward(effective_from_lon, to_loc.lon)
 
+            # Calculate arc using ORIGINAL coordinates
             arc_points = self._interpolate_great_circle(
-                from_loc.lat, effective_from_lon, to_loc.lat, to_loc.lon
+                from_loc.lat, from_loc.lon, to_loc.lat, to_loc.lon
             )
             arc_points = self._unwrap_longitudes(arc_points, force_westward=force_westward)
 
+            # Shift entire arc by from_offset to keep it in the same coordinate space
             if abs(from_offset) > 1:
                 arc_points = [(lat, lon + from_offset) for lat, lon in arc_points]
 
@@ -238,16 +242,28 @@ class WorldlineThreejsRenderer(BaseRenderer):
         lats = [loc.lat for loc in locations]
         lats.append(home.lat)
 
-        # Calculate extent centered on home (keep lon and lat separate)
+        # Calculate extent (not necessarily symmetric around home)
         padding = 10
-        max_lat_dist = max(abs(lat - home.lat) for lat in lats) + padding
-        max_lon_dist = max(abs(lon - home.lon) for lon in effective_lons) + padding
 
-        # Clamp latitude to valid range
-        max_lat_dist = min(max_lat_dist, 85 - abs(home.lat))  # Stay within ±85°
+        # Longitude extent
+        min_lon = min(effective_lons) - padding
+        max_lon = max(effective_lons) + padding
 
-        lon_range = (home.lon - max_lon_dist, home.lon + max_lon_dist)
-        lat_range = (home.lat - max_lat_dist, home.lat + max_lat_dist)
+        # Latitude extent - extend south to include South America
+        min_lat = min(lats) - padding
+        max_lat = max(lats) + padding
+        min_lat = min(min_lat, -55)  # Always include South America
+
+        # Clamp to valid range
+        min_lat = max(min_lat, -85)
+        max_lat = min(max_lat, 85)
+
+        lon_range = (min_lon, max_lon)
+        lat_range = (min_lat, max_lat)
+
+        # Calculate distances from home for coordinate mapping
+        max_lon_dist = max(abs(max_lon - home.lon), abs(min_lon - home.lon))
+        max_lat_dist = max(abs(max_lat - home.lat), abs(min_lat - home.lat))
 
         # Render map image
         map_b64 = self._render_map_image(lon_range, lat_range, resolution=1000)
@@ -267,11 +283,13 @@ class WorldlineThreejsRenderer(BaseRenderer):
             effective_from_lon = from_loc.lon + from_offset
             force_westward = self._should_go_westward(effective_from_lon, to_loc.lon)
 
+            # Calculate arc using ORIGINAL coordinates, then shift
             arc_points = self._interpolate_great_circle(
-                from_loc.lat, effective_from_lon, to_loc.lat, to_loc.lon
+                from_loc.lat, from_loc.lon, to_loc.lat, to_loc.lon
             )
             arc_points = self._unwrap_longitudes(arc_points, force_westward=force_westward)
 
+            # Shift entire arc by from_offset
             if abs(from_offset) > 1:
                 arc_points = [(lat, lon + from_offset) for lat, lon in arc_points]
 
@@ -287,13 +305,17 @@ class WorldlineThreejsRenderer(BaseRenderer):
         if self.config.routes_from_home:
             for loc, loc_time in zip(locations, normalized_times):
                 loc_offset = lon_offset_by_name.get(loc.name, 0)
-                effective_loc_lon = loc.lon + loc_offset
 
                 return_time = loc_time + 0.01
+                # Calculate arc using ORIGINAL coordinates, then shift
                 arc_points = self._interpolate_great_circle(
-                    loc.lat, effective_loc_lon, home.lat, home.lon
+                    loc.lat, loc.lon, home.lat, home.lon
                 )
                 arc_points = self._unwrap_longitudes(arc_points)
+
+                # Shift arc by loc_offset to match the location's effective position
+                if abs(loc_offset) > 1:
+                    arc_points = [(lat, lon + loc_offset) for lat, lon in arc_points]
 
                 times = np.linspace(loc_time, return_time, len(arc_points)).tolist()
                 worldlines_data.append({
@@ -315,9 +337,11 @@ class WorldlineThreejsRenderer(BaseRenderer):
                 'date': self._format_date(loc) if loc.date else None
             })
 
-        # Scene dimensions (square extent)
+        # Scene dimensions - use extent center for map alignment
         lon_center = (lon_range[0] + lon_range[1]) / 2
         lat_center = (lat_range[0] + lat_range[1]) / 2
+        lon_span = lon_range[1] - lon_range[0]
+        lat_span = lat_range[1] - lat_range[0]
 
         # Scale factor to make the scene reasonably sized
         scale = 0.1
@@ -375,10 +399,10 @@ class WorldlineThreejsRenderer(BaseRenderer):
         // Scene parameters
         const lonCenter = {lon_center};
         const latCenter = {lat_center};
-        const lonHalfSpan = {max_lon_dist};
-        const latHalfSpan = {max_lat_dist};
+        const lonSpan = {lon_span};
+        const latSpan = {lat_span};
         const scale = {scale};
-        const timeScale = lonHalfSpan * scale * 0.5;
+        const timeScale = lonSpan * scale * 0.3;
 
         // Convert geographic coordinates to scene coordinates
         // X is flipped to match the horizontally-flipped map image
@@ -411,7 +435,7 @@ class WorldlineThreejsRenderer(BaseRenderer):
             texture.minFilter = THREE.LinearFilter;
             const material = new THREE.SpriteMaterial({{ map: texture, transparent: true }});
             const sprite = new THREE.Sprite(material);
-            sprite.scale.set(lonHalfSpan * scale * 0.12, lonHalfSpan * scale * 0.016, 1);
+            sprite.scale.set(lonSpan * scale * 0.06, lonSpan * scale * 0.008, 1);
             return sprite;
         }}
 
@@ -424,8 +448,8 @@ class WorldlineThreejsRenderer(BaseRenderer):
         mapTexture.flipY = false;
 
         // Create map planes with correct dimensions
-        const planeWidth = lonHalfSpan * 2 * scale;
-        const planeHeight = latHalfSpan * 2 * scale;
+        const planeWidth = lonSpan * scale;
+        const planeHeight = latSpan * scale;
 
         // Base map (bottom)
         const baseMat = new THREE.MeshBasicMaterial({{
@@ -459,7 +483,7 @@ class WorldlineThreejsRenderer(BaseRenderer):
         scene.add(new THREE.Line(homeLineGeo, homeLineMat));
 
         // Home marker and label
-        const homeSphereGeo = new THREE.SphereGeometry(lonHalfSpan * scale * 0.012, 16, 16);
+        const homeSphereGeo = new THREE.SphereGeometry(lonSpan * scale * 0.006, 16, 16);
         const homeSphereMat = new THREE.MeshBasicMaterial({{ color: 0x2ecc71 }});
         const homeSphere = new THREE.Mesh(homeSphereGeo, homeSphereMat);
         homeSphere.position.set(homePos.x, 0, homePos.z);
@@ -478,10 +502,11 @@ class WorldlineThreejsRenderer(BaseRenderer):
             scene.add(new THREE.Line(geo, mat));
         }});
 
-        // Draw markers and labels
+        // Draw markers, labels, and drop lines
         const markers = {json.dumps(markers_data)};
-        const markerGeo = new THREE.SphereGeometry(lonHalfSpan * scale * 0.01, 16, 16);
+        const markerGeo = new THREE.SphereGeometry(lonSpan * scale * 0.005, 16, 16);
         const markerMat = new THREE.MeshBasicMaterial({{ color: 0x3498db }});
+        const dropLineMat = new THREE.LineBasicMaterial({{ color: 0xcccccc, transparent: true, opacity: 0.6 }});
 
         markers.forEach(m => {{
             const pos = toScene(m.lon, m.lat, m.t);
@@ -489,14 +514,21 @@ class WorldlineThreejsRenderer(BaseRenderer):
             sphere.position.copy(pos);
             scene.add(sphere);
 
+            // Vertical drop line from marker to base map
+            const dropLineGeo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(pos.x, pos.y, pos.z),
+                new THREE.Vector3(pos.x, -0.02 * timeScale, pos.z)
+            ]);
+            scene.add(new THREE.Line(dropLineGeo, dropLineMat));
+
             const label = createLabel(m.name);
             label.position.set(pos.x, pos.y + 0.05 * timeScale, pos.z);
             scene.add(label);
         }});
 
-        // Position camera
-        const camDist = lonHalfSpan * scale * 1.5;
-        camera.position.set(-camDist, camDist * 0.8, camDist);
+        // Position camera (rotated 180° around Y axis so map appears right-side up)
+        const camDist = lonSpan * scale * 0.8;
+        camera.position.set(camDist, camDist * 0.8, -camDist);
         controls.target.set(0, timeScale * 0.5, 0);
         controls.update();
 
