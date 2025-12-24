@@ -257,7 +257,7 @@ class WorldlineRenderer(BaseRenderer):
         if opacity is None:
             opacity = self.map_opacity
 
-        # Render actual map using cartopy with web tiles
+        # Render actual map using cartopy
         map_img = self._render_map_image(lon_range, lat_range, resolution)
 
         lons = np.linspace(lon_range[0], lon_range[1], resolution)
@@ -270,43 +270,36 @@ class WorldlineRenderer(BaseRenderer):
         # Flip vertically because image y-axis is inverted relative to lat
         map_img = np.flipud(map_img)
 
-        # Pack RGB into a single value for surfacecolor (0-1 range)
-        # We'll create a colorscale that maps these packed values back to RGB
-        r = map_img[:, :, 0].astype(float) / 255.0
-        g = map_img[:, :, 1].astype(float) / 255.0
-        b = map_img[:, :, 2].astype(float) / 255.0
+        # Use the green channel as surfacecolor (good contrast for our map colors)
+        # Ocean: rgb(170, 211, 223) → green=211
+        # Land: rgb(245, 243, 229) → green=243
+        # Borders: gray tones → green~153-204
+        surfacecolor = map_img[:, :, 1].astype(float)
 
-        # Use grayscale-ish encoding that preserves color variation
-        # Weight by luminance but keep some color info
-        colors = 0.299 * r + 0.587 * g + 0.114 * b
-
-        # Build a colorscale from sampled image colors
-        # Sample colors at regular intervals to build the colorscale
-        num_stops = 64
-        colorscale = []
-        for i in range(num_stops):
-            val = i / (num_stops - 1)
-            # Find pixels with this approximate value
-            mask = np.abs(colors - val) < (1.0 / num_stops)
-            if np.any(mask):
-                # Average the RGB values for pixels in this range
-                avg_r = int(np.mean(map_img[:, :, 0][mask]))
-                avg_g = int(np.mean(map_img[:, :, 1][mask]))
-                avg_b = int(np.mean(map_img[:, :, 2][mask]))
-            else:
-                # Interpolate gray
-                avg_r = avg_g = avg_b = int(val * 255)
-            colorscale.append([val, f'rgba({avg_r}, {avg_g}, {avg_b}, {opacity})'])
+        # Simple colorscale mapping grayscale values to our map colors
+        # Based on the green channel values of our cartopy-rendered map:
+        # - Coastlines/borders (darker): ~153-180
+        # - Ocean blue: ~211
+        # - Land tan: ~243
+        colorscale = [
+            [0.0, f'rgba(100, 100, 100, {opacity})'],      # Dark features
+            [0.6, f'rgba(153, 153, 153, {opacity})'],      # Coastlines gray
+            [0.75, f'rgba(170, 211, 223, {opacity})'],     # Ocean blue
+            [0.85, f'rgba(200, 220, 230, {opacity})'],     # Light ocean/transition
+            [0.95, f'rgba(245, 243, 229, {opacity})'],     # Land tan
+            [1.0, f'rgba(255, 255, 255, {opacity})'],      # White/light
+        ]
 
         return go.Surface(
             x=lon_grid,
             y=lat_grid,
             z=z_grid,
-            surfacecolor=colors,
+            surfacecolor=surfacecolor,
             colorscale=colorscale,
+            cmin=0,
+            cmax=255,
             showscale=False,
             hoverinfo='skip',
-            opacity=opacity,
         )
 
     def _is_land(self, lat: float, lon: float) -> bool:
