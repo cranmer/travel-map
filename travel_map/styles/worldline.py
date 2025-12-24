@@ -384,17 +384,6 @@ class WorldlineRenderer(BaseRenderer):
         )
         fig.add_trace(base_surface)
 
-        # Get unique trip time levels from the actual location dates
-        trip_times = sorted(set(normalized_times))
-        trip_times = [t for t in trip_times if t > 0.05]
-
-        # Add semi-transparent map surfaces at each trip's time level
-        for t in trip_times:
-            surface = self._create_map_surface(
-                t, lon_range, lat_range, resolution=200, opacity=self.map_opacity
-            )
-            fig.add_trace(surface)
-
         # Add top map at end of time range
         top_surface = self._create_map_surface(
             1.02, lon_range, lat_range, resolution=300, opacity=self.base_map_opacity
@@ -569,7 +558,7 @@ class WorldlineRenderer(BaseRenderer):
                     gridcolor='rgba(0, 0, 0, 0.1)',
                 ),
                 camera=dict(
-                    eye=dict(x=1.5, y=1.5, z=1.2),
+                    eye=dict(x=-1.5, y=-1.5, z=1.2),
                     up=dict(x=0, y=0, z=1),
                 ),
                 aspectmode='manual',
@@ -640,17 +629,6 @@ class WorldlineRenderer(BaseRenderer):
             -0.02, lon_range, lat_range, resolution=300, opacity=self.base_map_opacity
         )
         fig.add_trace(base_surface)
-
-        # Get unique trip time levels
-        trip_times = sorted(set(normalized_times))
-        trip_times = [t for t in trip_times if t > 0.05]
-
-        # Add semi-transparent map surfaces at each trip's time level
-        for t in trip_times:
-            surface = self._create_map_surface(
-                t, lon_range, lat_range, resolution=200, opacity=self.map_opacity
-            )
-            fig.add_trace(surface)
 
         # Add top map at end of time range
         top_surface = self._create_map_surface(
@@ -779,7 +757,7 @@ class WorldlineRenderer(BaseRenderer):
                     ticktext=ticktext,
                 ),
                 camera=dict(
-                    eye=dict(x=1.8, y=1.8, z=1.0),
+                    eye=dict(x=-1.8, y=-1.8, z=1.0),
                 ),
                 aspectmode='manual',
                 aspectratio=dict(x=2, y=1.5, z=1),
