@@ -20,7 +20,7 @@ from ..config import TravelConfig
 class WorldlineRenderer(BaseRenderer):
     """Render maps as 3D worldline visualization with time on vertical axis."""
 
-    def __init__(self, config: TravelConfig, map_opacity: float = 0.5, base_map_opacity: float = 0.9):
+    def __init__(self, config: TravelConfig, map_opacity: float = 0.3, base_map_opacity: float = 0.9):
         super().__init__(config)
         self.path_color = "#e74c3c"  # Red for worldlines
         self.marker_color = "#3498db"  # Blue for location markers
@@ -311,6 +311,12 @@ class WorldlineRenderer(BaseRenderer):
             )
             fig.add_trace(surface)
 
+        # Add top map at end of time range
+        top_surface = self._create_map_surface(
+            1.02, lon_range, lat_range, resolution=300, opacity=self.base_map_opacity
+        )
+        fig.add_trace(top_surface)
+
         # Add vertical line at home location (time axis)
         home = self.config.get_home()
         fig.add_trace(go.Scatter3d(
@@ -318,7 +324,7 @@ class WorldlineRenderer(BaseRenderer):
             y=[home.lat, home.lat],
             z=[-0.02, 1.02],
             mode='lines',
-            line=dict(color=self.home_line_color, width=8, dash='dot'),
+            line=dict(color=self.path_color, width=8),
             name='Home Timeline',
             hoverinfo='name',
         ))
@@ -516,6 +522,12 @@ class WorldlineRenderer(BaseRenderer):
             )
             fig.add_trace(surface)
 
+        # Add top map at end of time range
+        top_surface = self._create_map_surface(
+            1.02, lon_range, lat_range, resolution=300, opacity=self.base_map_opacity
+        )
+        fig.add_trace(top_surface)
+
         # Add vertical line at home location (time axis)
         home = self.config.get_home()
         fig.add_trace(go.Scatter3d(
@@ -523,7 +535,7 @@ class WorldlineRenderer(BaseRenderer):
             y=[home.lat, home.lat],
             z=[-0.02, 1.02],
             mode='lines',
-            line=dict(color=self.home_line_color, width=8, dash='dot'),
+            line=dict(color=self.path_color, width=8),
             showlegend=False,
         ))
 
