@@ -172,7 +172,52 @@ class IndianaJonesRenderer(BaseRenderer):
 
     def render_interactive(self) -> str:
         """Render an interactive map with vintage styling."""
-        center = self._get_center()
+        # First pass: calculate longitude offsets for all locations
+        lon_offset_by_name = {}
+        routes = self.config.get_routes()
+        for from_loc, to_loc in routes:
+            from_offset = lon_offset_by_name.get(from_loc.name, 0)
+            effective_from_lon = from_loc.lon + from_offset
+            force_westward = self._should_go_westward(effective_from_lon, to_loc.lon)
+
+            arc_points = self._interpolate_great_circle(
+                from_loc.lat, from_loc.lon,
+                to_loc.lat, to_loc.lon,
+            )
+            arc_points = self._unwrap_longitudes(arc_points, force_westward=force_westward)
+
+            if abs(from_offset) > 1:
+                arc_points = [(lat, lon + from_offset) for lat, lon in arc_points]
+
+            end_lon = arc_points[-1][1]
+            to_offset = end_lon - to_loc.lon
+            if abs(to_offset) > 1:
+                lon_offset_by_name[to_loc.name] = to_offset
+
+        # Calculate bounds using effective (shifted) longitudes
+        lats = [loc.lat for loc in self.config.locations]
+        effective_lons = []
+        for loc in self.config.locations:
+            effective_lon = loc.lon
+            if loc.name in lon_offset_by_name:
+                effective_lon = loc.lon + lon_offset_by_name[loc.name]
+            effective_lons.append(effective_lon)
+
+        # Add home location for bounds calculation
+        home = self.config.get_home()
+        lats.append(home.lat)
+        effective_lons.append(home.lon)
+
+        padding = 5
+        bounds = [
+            min(lats) - padding,
+            max(lats) + padding,
+            min(effective_lons) - padding,
+            max(effective_lons) + padding,
+        ]
+
+        # Center on home location (Madison)
+        center = [home.lat, home.lon]
 
         # Use Esri World Topo Map for vintage cartographic look (free, no auth)
         m = folium.Map(
@@ -188,11 +233,7 @@ class IndianaJonesRenderer(BaseRenderer):
             name="Vintage",
         ).add_to(m)
 
-        bounds = self._get_bounds()
         m.fit_bounds([[bounds[0], bounds[2]], [bounds[1], bounds[3]]])
-
-        # Track longitude offsets for locations that cross the dateline
-        lon_offset_by_name = {}
 
         # Draw red dotted flight paths
         routes = self.config.get_routes()
@@ -318,8 +359,54 @@ class IndianaJonesRenderer(BaseRenderer):
         fig_width = width / 100
         fig_height = height / 100
 
-        bounds = self._get_bounds()
-        center_lon = (bounds[2] + bounds[3]) / 2
+        # First pass: calculate longitude offsets for all locations
+        lon_offset_by_name = {}
+        routes = self.config.get_routes()
+        for from_loc, to_loc in routes:
+            from_offset = lon_offset_by_name.get(from_loc.name, 0)
+            effective_from_lon = from_loc.lon + from_offset
+            force_westward = self._should_go_westward(effective_from_lon, to_loc.lon)
+
+            arc_points = self._interpolate_great_circle(
+                from_loc.lat, from_loc.lon,
+                to_loc.lat, to_loc.lon,
+            )
+            arc_points = self._unwrap_longitudes(arc_points, force_westward=force_westward)
+
+            if abs(from_offset) > 1:
+                arc_points = [(lat, lon + from_offset) for lat, lon in arc_points]
+
+            end_lon = arc_points[-1][1]
+            to_offset = end_lon - to_loc.lon
+            if abs(to_offset) > 1:
+                lon_offset_by_name[to_loc.name] = to_offset
+
+        # Calculate bounds using effective (shifted) longitudes
+        lats = [loc.lat for loc in self.config.locations]
+        effective_lons = []
+        for loc in self.config.locations:
+            effective_lon = loc.lon
+            if loc.name in lon_offset_by_name:
+                effective_lon = loc.lon + lon_offset_by_name[loc.name]
+            effective_lons.append(effective_lon)
+
+        # Add home location if routes_from_home is enabled
+        if self.config.routes_from_home:
+            home = self.config.get_home()
+            lats.append(home.lat)
+            effective_lons.append(home.lon)
+
+        padding = 5
+        bounds = [
+            min(lats) - padding,
+            max(lats) + padding,
+            min(effective_lons) - padding,
+            max(effective_lons) + padding,
+        ]
+
+        # Center on home location (Madison) for better visual balance
+        home = self.config.get_home()
+        center_lon = home.lon
 
         # Calculate extent that matches the figure aspect ratio
         data_lon_range = bounds[3] - bounds[2]
@@ -361,9 +448,6 @@ class IndianaJonesRenderer(BaseRenderer):
         ax.add_feature(cfeature.BORDERS, linewidth=0.5, linestyle="-", edgecolor=self.border_color)
         ax.add_feature(cfeature.LAKES, facecolor=self.ocean_color, alpha=0.7)
         ax.add_feature(cfeature.RIVERS, edgecolor=self.ocean_color, linewidth=0.5)
-
-        # Track longitude offsets for locations that cross the dateline
-        lon_offset_by_name = {}
 
         # Draw red dotted flight paths
         routes = self.config.get_routes()
