@@ -39,10 +39,24 @@ class WorldlineRenderer(BaseRenderer):
         """Render a map image using cartopy Natural Earth features and return as RGB array.
 
         Returns array of shape (resolution, resolution, 3) with RGB values 0-255.
+        Handles extended longitude ranges (outside -180 to 180) by using appropriate
+        central longitude for the projection.
         """
         cache_key = (lon_range, lat_range, resolution)
         if cache_key in self._map_image_cache:
             return self._map_image_cache[cache_key]
+
+        # Calculate the center of our desired view
+        central_lon = (lon_range[0] + lon_range[1]) / 2
+
+        # Normalize central_lon to be within -180 to 180 for cartopy
+        while central_lon < -180:
+            central_lon += 360
+        while central_lon > 180:
+            central_lon -= 360
+
+        # Calculate the half-span of longitude
+        lon_half_span = (lon_range[1] - lon_range[0]) / 2
 
         # Calculate appropriate zoom level based on extent
         lon_span = lon_range[1] - lon_range[0]
@@ -52,10 +66,16 @@ class WorldlineRenderer(BaseRenderer):
         dpi = 100
         fig_size = resolution / dpi
         fig = plt.figure(figsize=(fig_size, fig_size), dpi=dpi)
-        ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
 
-        # Set extent
-        ax.set_extent([lon_range[0], lon_range[1], lat_range[0], lat_range[1]], crs=ccrs.PlateCarree())
+        # Use a projection centered on our view center
+        # This allows the map to wrap properly around the dateline
+        projection = ccrs.PlateCarree(central_longitude=central_lon)
+        ax = fig.add_subplot(1, 1, 1, projection=projection)
+
+        # Set extent using coordinates relative to the central longitude
+        # The extent is symmetric around the center: [-half_span, +half_span]
+        ax.set_extent([-lon_half_span, lon_half_span, lat_range[0], lat_range[1]],
+                      crs=projection)
 
         # Use cartopy's built-in Natural Earth features for reliable, detailed maps
         # Colors chosen to match CartoDB Positron style
@@ -182,6 +202,49 @@ class WorldlineRenderer(BaseRenderer):
 
         return points
 
+    def _should_go_westward(self, from_lon: float, to_lon: float) -> bool:
+        """Determine if arc should go westward (across Pacific) or eastward.
+
+        From home (Madison ~-89°), go westward to destinations east of Nepal (~85°E).
+        """
+        nepal_longitude = 85.0
+        if from_lon < 0 and to_lon > nepal_longitude:
+            return True
+        return False
+
+    def _unwrap_longitudes(
+        self, points: list[tuple[float, float]], force_westward: bool = False
+    ) -> list[tuple[float, float]]:
+        """Unwrap longitude values to make them continuous across the dateline."""
+        if len(points) < 2:
+            return points
+
+        unwrapped = [points[0]]
+        offset = 0.0
+
+        for i in range(1, len(points)):
+            prev_lon = unwrapped[i - 1][1]
+            curr_lat = points[i][0]
+            curr_lon = points[i][1] + offset
+
+            delta = curr_lon - prev_lon
+            if delta > 180:
+                offset -= 360
+                curr_lon -= 360
+            elif delta < -180:
+                offset += 360
+                curr_lon += 360
+
+            unwrapped.append((curr_lat, curr_lon))
+
+        if force_westward and len(unwrapped) > 1:
+            start_lon = unwrapped[0][1]
+            end_lon = unwrapped[-1][1]
+            if end_lon > start_lon:
+                unwrapped = [(lat, lon - 360) for lat, lon in unwrapped]
+
+        return unwrapped
+
     def _create_map_surface(
         self,
         time_level: float,
@@ -274,22 +337,51 @@ class WorldlineRenderer(BaseRenderer):
         """Render an interactive 3D worldline visualization."""
         locations = self.config.locations
         normalized_times, min_date, max_date = self._normalize_time(locations)
+        home = self.config.get_home()
 
         # Create location name to time mapping
         loc_times = {loc.name: t for loc, t in zip(locations, normalized_times)}
 
-        # Get bounds
+        # First pass: calculate longitude offsets for dateline handling
+        lon_offset_by_name = {}
+        routes = self.config.get_routes()
+        for from_loc, to_loc in routes:
+            from_offset = lon_offset_by_name.get(from_loc.name, 0)
+            effective_from_lon = from_loc.lon + from_offset
+            force_westward = self._should_go_westward(effective_from_lon, to_loc.lon)
+
+            arc_points = self._interpolate_great_circle(
+                from_loc.lat, effective_from_lon, to_loc.lat, to_loc.lon
+            )
+            arc_points = self._unwrap_longitudes(arc_points, force_westward=force_westward)
+
+            if abs(from_offset) > 1:
+                arc_points = [(lat, lon + from_offset) for lat, lon in arc_points]
+
+            end_lon = arc_points[-1][1]
+            to_offset = end_lon - to_loc.lon
+            if abs(to_offset) > 1:
+                lon_offset_by_name[to_loc.name] = to_offset
+
+        # Calculate effective longitudes for all locations
+        effective_lons = []
+        for loc in locations:
+            if loc.name in lon_offset_by_name:
+                effective_lons.append(loc.lon + lon_offset_by_name[loc.name])
+            else:
+                effective_lons.append(loc.lon)
+        effective_lons.append(home.lon)
+
         lats = [loc.lat for loc in locations]
-        lons = [loc.lon for loc in locations]
+        lats.append(home.lat)
 
-        if self.config.routes_from_home:
-            home = self.config.get_home()
-            lats.append(home.lat)
-            lons.append(home.lon)
-
+        # Calculate extent centered on home using effective positions
         padding = 10
-        lon_range = (min(lons) - padding, max(lons) + padding)
-        lat_range = (min(lats) - padding, max(lats) + padding)
+        max_lat_dist = max(abs(lat - home.lat) for lat in lats) + padding
+        max_lon_dist = max(abs(lon - home.lon) for lon in effective_lons) + padding
+
+        lon_range = (home.lon - max_lon_dist, home.lon + max_lon_dist)
+        lat_range = (home.lat - max_lat_dist, home.lat + max_lat_dist)
 
         fig = go.Figure()
 
@@ -301,7 +393,6 @@ class WorldlineRenderer(BaseRenderer):
 
         # Get unique trip time levels from the actual location dates
         trip_times = sorted(set(normalized_times))
-        # Filter out times very close to 0 (already have base map there)
         trip_times = [t for t in trip_times if t > 0.05]
 
         # Add semi-transparent map surfaces at each trip's time level
@@ -318,7 +409,6 @@ class WorldlineRenderer(BaseRenderer):
         fig.add_trace(top_surface)
 
         # Add vertical line at home location (time axis)
-        home = self.config.get_home()
         fig.add_trace(go.Scatter3d(
             x=[home.lon, home.lon],
             y=[home.lat, home.lat],
@@ -329,20 +419,31 @@ class WorldlineRenderer(BaseRenderer):
             hoverinfo='name',
         ))
 
-        # Add worldline paths (outbound and return)
-        routes = self.config.get_routes()
+        # Add worldline paths with dateline handling
         for from_loc, to_loc in routes:
             from_time = loc_times.get(from_loc.name, 0.5)
             to_time = loc_times.get(to_loc.name, 0.5)
 
-            # For home, use the destination's time minus a small offset
             if from_loc.name == home.name:
                 from_time = max(0, to_time - 0.02)
 
-            # Outbound arc
-            lons_path, lats_path, times_path = self._create_worldline_trace(
-                from_loc, to_loc, from_time, to_time
+            # Get effective from longitude
+            from_offset = lon_offset_by_name.get(from_loc.name, 0)
+            effective_from_lon = from_loc.lon + from_offset
+            force_westward = self._should_go_westward(effective_from_lon, to_loc.lon)
+
+            # Create arc with dateline handling
+            arc_points = self._interpolate_great_circle(
+                from_loc.lat, effective_from_lon, to_loc.lat, to_loc.lon
             )
+            arc_points = self._unwrap_longitudes(arc_points, force_westward=force_westward)
+
+            if abs(from_offset) > 1:
+                arc_points = [(lat, lon + from_offset) for lat, lon in arc_points]
+
+            lats_path = [p[0] for p in arc_points]
+            lons_path = [p[1] for p in arc_points]
+            times_path = np.linspace(from_time, to_time, len(arc_points)).tolist()
 
             fig.add_trace(go.Scatter3d(
                 x=lons_path,
@@ -357,11 +458,19 @@ class WorldlineRenderer(BaseRenderer):
         # Add return arcs from each location back to home (same day)
         if self.config.routes_from_home:
             for loc, loc_time in zip(locations, normalized_times):
-                # Create return arc at the same time level (horizontal arc back to home)
-                return_time = loc_time + 0.01  # Slightly after arrival
-                lons_path, lats_path, times_path = self._create_worldline_trace(
-                    loc, home, loc_time, return_time
+                loc_offset = lon_offset_by_name.get(loc.name, 0)
+                effective_loc_lon = loc.lon + loc_offset
+
+                return_time = loc_time + 0.01
+                arc_points = self._interpolate_great_circle(
+                    loc.lat, effective_loc_lon, home.lat, home.lon
                 )
+                arc_points = self._unwrap_longitudes(arc_points)
+
+                lats_path = [p[0] for p in arc_points]
+                lons_path = [p[1] for p in arc_points]
+                times_path = np.linspace(loc_time, return_time, len(arc_points)).tolist()
+
                 fig.add_trace(go.Scatter3d(
                     x=lons_path,
                     y=lats_path,
@@ -372,8 +481,8 @@ class WorldlineRenderer(BaseRenderer):
                     hoverinfo='name',
                 ))
 
-        # Add location markers
-        marker_lons = [loc.lon for loc in locations]
+        # Add location markers at effective positions
+        marker_lons = [loc.lon + lon_offset_by_name.get(loc.name, 0) for loc in locations]
         marker_lats = [loc.lat for loc in locations]
         marker_times = normalized_times
         marker_names = [loc.name for loc in locations]
@@ -484,35 +593,63 @@ class WorldlineRenderer(BaseRenderer):
 
     def render_static(self, width: int = 1200, height: int = 800) -> Image.Image:
         """Render a static image of the 3D worldline visualization."""
-        # Generate the plotly figure
         locations = self.config.locations
         normalized_times, min_date, max_date = self._normalize_time(locations)
+        home = self.config.get_home()
 
         loc_times = {loc.name: t for loc, t in zip(locations, normalized_times)}
 
+        # First pass: calculate longitude offsets for dateline handling
+        lon_offset_by_name = {}
+        routes = self.config.get_routes()
+        for from_loc, to_loc in routes:
+            from_offset = lon_offset_by_name.get(from_loc.name, 0)
+            effective_from_lon = from_loc.lon + from_offset
+            force_westward = self._should_go_westward(effective_from_lon, to_loc.lon)
+
+            arc_points = self._interpolate_great_circle(
+                from_loc.lat, effective_from_lon, to_loc.lat, to_loc.lon
+            )
+            arc_points = self._unwrap_longitudes(arc_points, force_westward=force_westward)
+
+            if abs(from_offset) > 1:
+                arc_points = [(lat, lon + from_offset) for lat, lon in arc_points]
+
+            end_lon = arc_points[-1][1]
+            to_offset = end_lon - to_loc.lon
+            if abs(to_offset) > 1:
+                lon_offset_by_name[to_loc.name] = to_offset
+
+        # Calculate effective longitudes for all locations
+        effective_lons = []
+        for loc in locations:
+            if loc.name in lon_offset_by_name:
+                effective_lons.append(loc.lon + lon_offset_by_name[loc.name])
+            else:
+                effective_lons.append(loc.lon)
+        effective_lons.append(home.lon)
+
         lats = [loc.lat for loc in locations]
-        lons = [loc.lon for loc in locations]
+        lats.append(home.lat)
 
-        if self.config.routes_from_home:
-            home = self.config.get_home()
-            lats.append(home.lat)
-            lons.append(home.lon)
-
+        # Calculate extent centered on home using effective positions
         padding = 10
-        lon_range = (min(lons) - padding, max(lons) + padding)
-        lat_range = (min(lats) - padding, max(lats) + padding)
+        max_lat_dist = max(abs(lat - home.lat) for lat in lats) + padding
+        max_lon_dist = max(abs(lon - home.lon) for lon in effective_lons) + padding
+
+        lon_range = (home.lon - max_lon_dist, home.lon + max_lon_dist)
+        lat_range = (home.lat - max_lat_dist, home.lat + max_lat_dist)
 
         fig = go.Figure()
 
-        # Add base map at bottom of cube (slightly below 0 to be visible)
+        # Add base map at bottom of cube
         base_surface = self._create_map_surface(
             -0.02, lon_range, lat_range, resolution=300, opacity=self.base_map_opacity
         )
         fig.add_trace(base_surface)
 
-        # Get unique trip time levels from the actual location dates
+        # Get unique trip time levels
         trip_times = sorted(set(normalized_times))
-        # Filter out times very close to 0 (already have base map there)
         trip_times = [t for t in trip_times if t > 0.05]
 
         # Add semi-transparent map surfaces at each trip's time level
@@ -529,7 +666,6 @@ class WorldlineRenderer(BaseRenderer):
         fig.add_trace(top_surface)
 
         # Add vertical line at home location (time axis)
-        home = self.config.get_home()
         fig.add_trace(go.Scatter3d(
             x=[home.lon, home.lon],
             y=[home.lat, home.lat],
@@ -539,8 +675,7 @@ class WorldlineRenderer(BaseRenderer):
             showlegend=False,
         ))
 
-        # Add worldline paths (outbound)
-        routes = self.config.get_routes()
+        # Add worldline paths with dateline handling
         for from_loc, to_loc in routes:
             from_time = loc_times.get(from_loc.name, 0.5)
             to_time = loc_times.get(to_loc.name, 0.5)
@@ -548,9 +683,21 @@ class WorldlineRenderer(BaseRenderer):
             if from_loc.name == home.name:
                 from_time = max(0, to_time - 0.02)
 
-            lons_path, lats_path, times_path = self._create_worldline_trace(
-                from_loc, to_loc, from_time, to_time
+            from_offset = lon_offset_by_name.get(from_loc.name, 0)
+            effective_from_lon = from_loc.lon + from_offset
+            force_westward = self._should_go_westward(effective_from_lon, to_loc.lon)
+
+            arc_points = self._interpolate_great_circle(
+                from_loc.lat, effective_from_lon, to_loc.lat, to_loc.lon
             )
+            arc_points = self._unwrap_longitudes(arc_points, force_westward=force_westward)
+
+            if abs(from_offset) > 1:
+                arc_points = [(lat, lon + from_offset) for lat, lon in arc_points]
+
+            lats_path = [p[0] for p in arc_points]
+            lons_path = [p[1] for p in arc_points]
+            times_path = np.linspace(from_time, to_time, len(arc_points)).tolist()
 
             fig.add_trace(go.Scatter3d(
                 x=lons_path,
@@ -561,13 +708,22 @@ class WorldlineRenderer(BaseRenderer):
                 showlegend=False,
             ))
 
-        # Add return arcs from each location back to home (same day)
+        # Add return arcs from each location back to home
         if self.config.routes_from_home:
             for loc, loc_time in zip(locations, normalized_times):
+                loc_offset = lon_offset_by_name.get(loc.name, 0)
+                effective_loc_lon = loc.lon + loc_offset
+
                 return_time = loc_time + 0.01
-                lons_path, lats_path, times_path = self._create_worldline_trace(
-                    loc, home, loc_time, return_time
+                arc_points = self._interpolate_great_circle(
+                    loc.lat, effective_loc_lon, home.lat, home.lon
                 )
+                arc_points = self._unwrap_longitudes(arc_points)
+
+                lats_path = [p[0] for p in arc_points]
+                lons_path = [p[1] for p in arc_points]
+                times_path = np.linspace(loc_time, return_time, len(arc_points)).tolist()
+
                 fig.add_trace(go.Scatter3d(
                     x=lons_path,
                     y=lats_path,
@@ -577,9 +733,10 @@ class WorldlineRenderer(BaseRenderer):
                     showlegend=False,
                 ))
 
-        # Add markers
+        # Add markers at effective positions
+        marker_lons = [loc.lon + lon_offset_by_name.get(loc.name, 0) for loc in locations]
         fig.add_trace(go.Scatter3d(
-            x=[loc.lon for loc in locations],
+            x=marker_lons,
             y=[loc.lat for loc in locations],
             z=normalized_times,
             mode='markers+text',
@@ -590,9 +747,8 @@ class WorldlineRenderer(BaseRenderer):
             showlegend=False,
         ))
 
-        # Add home
+        # Add home marker
         if self.config.routes_from_home:
-            home = self.config.get_home()
             fig.add_trace(go.Scatter3d(
                 x=[home.lon],
                 y=[home.lat],
