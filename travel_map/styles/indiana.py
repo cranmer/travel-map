@@ -321,10 +321,38 @@ class IndianaJonesRenderer(BaseRenderer):
         bounds = self._get_bounds()
         center_lon = (bounds[2] + bounds[3]) / 2
 
+        # Calculate extent that matches the figure aspect ratio
+        data_lon_range = bounds[3] - bounds[2]
+        data_lat_range = bounds[1] - bounds[0]
+        fig_aspect = fig_width / fig_height
+        data_aspect = data_lon_range / data_lat_range
+
+        # Expand bounds to match figure aspect ratio
+        if data_aspect > fig_aspect:
+            # Data is wider than figure - expand latitude
+            new_lat_range = data_lon_range / fig_aspect
+            lat_center = (bounds[0] + bounds[1]) / 2
+            extent_bounds = [
+                lat_center - new_lat_range / 2,
+                lat_center + new_lat_range / 2,
+                bounds[2],
+                bounds[3],
+            ]
+        else:
+            # Data is taller than figure - expand longitude
+            new_lon_range = data_lat_range * fig_aspect
+            lon_center = (bounds[2] + bounds[3]) / 2
+            extent_bounds = [
+                bounds[0],
+                bounds[1],
+                lon_center - new_lon_range / 2,
+                lon_center + new_lon_range / 2,
+            ]
+
         fig = plt.figure(figsize=(fig_width, fig_height))
         ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree(central_longitude=center_lon))
 
-        ax.set_extent([bounds[2], bounds[3], bounds[0], bounds[1]], crs=ccrs.PlateCarree())
+        ax.set_extent([extent_bounds[2], extent_bounds[3], extent_bounds[0], extent_bounds[1]], crs=ccrs.PlateCarree())
 
         # Vintage color scheme for map features
         ax.add_feature(cfeature.LAND, facecolor=self.land_color)
@@ -334,13 +362,37 @@ class IndianaJonesRenderer(BaseRenderer):
         ax.add_feature(cfeature.LAKES, facecolor=self.ocean_color, alpha=0.7)
         ax.add_feature(cfeature.RIVERS, edgecolor=self.ocean_color, linewidth=0.5)
 
+        # Track longitude offsets for locations that cross the dateline
+        lon_offset_by_name = {}
+
         # Draw red dotted flight paths
         routes = self.config.get_routes()
         for from_loc, to_loc in routes:
+            # Get the offset for from_loc (for multi-leg trips crossing dateline)
+            from_offset = lon_offset_by_name.get(from_loc.name, 0)
+
+            # Determine if this arc should go westward (across Pacific)
+            effective_from_lon = from_loc.lon + from_offset
+            force_westward = self._should_go_westward(effective_from_lon, to_loc.lon)
+
             arc_points = self._interpolate_great_circle(
                 from_loc.lat, from_loc.lon,
                 to_loc.lat, to_loc.lon,
             )
+
+            # Unwrap longitudes to make continuous across dateline
+            arc_points = self._unwrap_longitudes(arc_points, force_westward=force_westward)
+
+            # If we have a from_offset, apply it to all points
+            if abs(from_offset) > 1:
+                arc_points = [(lat, lon + from_offset) for lat, lon in arc_points]
+
+            # Calculate the total offset for the destination
+            end_lon = arc_points[-1][1]
+            to_offset = end_lon - to_loc.lon
+            if abs(to_offset) > 1:
+                lon_offset_by_name[to_loc.name] = to_offset
+
             lats = [p[0] for p in arc_points]
             lons = [p[1] for p in arc_points]
 
@@ -379,11 +431,16 @@ class IndianaJonesRenderer(BaseRenderer):
                 zorder=5,
             )
 
-        # Plot location markers
+        # Plot location markers at their effective positions
         for loc in self.config.locations:
+            # Use shifted longitude if this location crossed the dateline
+            effective_lon = loc.lon
+            if loc.name in lon_offset_by_name:
+                effective_lon = loc.lon + lon_offset_by_name[loc.name]
+
             # Red circle marker
             ax.plot(
-                loc.lon, loc.lat,
+                effective_lon, loc.lat,
                 marker="o",
                 color=self.path_color,
                 markersize=12,
@@ -400,7 +457,7 @@ class IndianaJonesRenderer(BaseRenderer):
                 label += f"\n{date_str}"
 
             ax.text(
-                loc.lon, loc.lat + 1.2,
+                effective_lon, loc.lat + 1.2,
                 label,
                 transform=ccrs.PlateCarree(),
                 fontsize=9,
@@ -432,9 +489,10 @@ class IndianaJonesRenderer(BaseRenderer):
         ax.spines["geo"].set_edgecolor(self.border_color)
         ax.spines["geo"].set_linewidth(2)
 
-        # Save to buffer
+        # Save to buffer - use tight_layout to fill figure while keeping some padding
+        fig.tight_layout(pad=0.5)
         buf = io.BytesIO()
-        fig.savefig(buf, format="png", dpi=100, bbox_inches="tight", facecolor="#f4e4bc")
+        fig.savefig(buf, format="png", dpi=100, facecolor="#f4e4bc")
         plt.close(fig)
         buf.seek(0)
 

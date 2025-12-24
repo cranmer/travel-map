@@ -97,7 +97,12 @@ def generate(config_file, output, style, output_format, width, height):
     type=click.Choice(["pins", "arcs", "indiana_jones"]),
     help="Override the style from config.",
 )
-def preview(config_file, style):
+@click.option(
+    "-o", "--output",
+    type=click.Path(),
+    help="Output HTML file path. If not specified, saves to examples/{style}_example.html",
+)
+def preview(config_file, style, output):
     """Preview a map in your default browser."""
     config = TravelConfig.from_yaml(config_file)
 
@@ -116,13 +121,23 @@ def preview(config_file, style):
     click.echo(f"Generating {config.style} preview...")
     html = renderer.render_interactive()
 
-    # Save to temp file and open
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False) as f:
-        f.write(html)
-        temp_path = f.name
+    # Determine output path
+    if output:
+        output_path = Path(output)
+    else:
+        # Save to examples folder with standard name
+        config_path = Path(config_file)
+        examples_dir = config_path.parent
+        style_name = config.style.replace("_", "-")
+        output_path = examples_dir / f"{style_name}_example.html"
 
+    # Save HTML file
+    with open(output_path, "w") as f:
+        f.write(html)
+
+    click.echo(f"Saved to: {output_path}")
     click.echo(f"Opening preview in browser...")
-    webbrowser.open(f"file://{temp_path}")
+    webbrowser.open(f"file://{output_path.absolute()}")
 
 
 @cli.command()
