@@ -26,7 +26,7 @@ def cli():
 )
 @click.option(
     "-s", "--style",
-    type=click.Choice(["pins", "arcs", "indiana_jones", "worldline"]),
+    type=click.Choice(["pins", "arcs", "indiana_jones", "worldline", "worldline3d"]),
     help="Override the style from config.",
 )
 @click.option(
@@ -147,7 +147,7 @@ def _generate_embed_html(renderer) -> str:
 @click.argument("config_file", type=click.Path(exists=True))
 @click.option(
     "-s", "--style",
-    type=click.Choice(["pins", "arcs", "indiana_jones", "worldline"]),
+    type=click.Choice(["pins", "arcs", "indiana_jones", "worldline", "worldline3d"]),
     help="Override the style from config.",
 )
 @click.option(
@@ -223,7 +223,7 @@ def preview(config_file, style, output, embed):
 )
 @click.option(
     "-s", "--style",
-    type=click.Choice(["pins", "arcs", "indiana_jones", "worldline"]),
+    type=click.Choice(["pins", "arcs", "indiana_jones", "worldline", "worldline3d"]),
     default="arcs",
     help="Default style for the config (default: arcs).",
 )
