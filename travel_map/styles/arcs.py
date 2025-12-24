@@ -57,14 +57,31 @@ class ArcsRenderer(BaseRenderer):
 
         return points
 
+    def _should_go_westward(self, from_lon: float, to_lon: float) -> bool:
+        """Determine if arc should go westward (across Pacific) or eastward.
+
+        From home (Madison ~-89°), go westward to destinations east of Nepal (~85°E).
+        This creates the classic "around the world" look for Asia/Pacific destinations.
+        """
+        # Nepal is around 85°E - destinations east of this go westward
+        nepal_longitude = 85.0
+
+        # Only apply westward routing if starting from western hemisphere
+        # and destination is in eastern Asia/Pacific
+        if from_lon < 0 and to_lon > nepal_longitude:
+            return True
+        return False
+
     def _unwrap_longitudes(
-        self, points: list[tuple[float, float]]
+        self, points: list[tuple[float, float]], force_westward: bool = False
     ) -> list[tuple[float, float]]:
         """Unwrap longitude values to make them continuous across the dateline.
 
         Instead of splitting arcs at ±180°, this shifts longitude values to be
         continuous (e.g., going from 170° to 190° instead of 170° to -170°).
         Leaflet handles extended longitude values correctly.
+
+        If force_westward is True, ensures the arc goes west (negative direction).
         """
         if len(points) < 2:
             return points
@@ -87,6 +104,14 @@ class ArcsRenderer(BaseRenderer):
                 curr_lon += 360
 
             unwrapped.append((curr_lat, curr_lon))
+
+        # If we should go westward but ended up going east, shift everything
+        if force_westward and len(unwrapped) > 1:
+            start_lon = unwrapped[0][1]
+            end_lon = unwrapped[-1][1]
+            # If we went eastward (end > start) but should go west, shift by -360
+            if end_lon > start_lon:
+                unwrapped = [(lat, lon - 360) for lat, lon in unwrapped]
 
         return unwrapped
 
@@ -112,13 +137,17 @@ class ArcsRenderer(BaseRenderer):
             # Get the offset for from_loc (for multi-leg trips crossing dateline)
             from_offset = lon_offset_by_name.get(from_loc.name, 0)
 
+            # Determine if this arc should go westward (across Pacific)
+            effective_from_lon = from_loc.lon + from_offset
+            force_westward = self._should_go_westward(effective_from_lon, to_loc.lon)
+
             arc_points = self._interpolate_great_circle(
                 from_loc.lat, from_loc.lon,
                 to_loc.lat, to_loc.lon,
             )
 
             # Unwrap longitudes to make continuous across dateline
-            arc_points = self._unwrap_longitudes(arc_points)
+            arc_points = self._unwrap_longitudes(arc_points, force_westward=force_westward)
 
             # If we have a from_offset, apply it to all points
             # (the interpolation normalizes longitudes, so we need to shift them back)
@@ -145,13 +174,7 @@ class ArcsRenderer(BaseRenderer):
                 pulse_color="#ffffff",
             ).add_to(m)
 
-        # Convert to shifted_positions (by index) for markers
-        shifted_positions = {}
-        for idx, loc in enumerate(self.config.locations):
-            if loc.name in lon_offset_by_name:
-                shifted_positions[idx] = loc.lon + lon_offset_by_name[loc.name]
-
-        # Add markers
+        # Add markers at their effective positions (shifted if crossing dateline)
         for i, loc in enumerate(self.config.locations):
             popup_content = f"<b>{loc.name}</b>"
             if loc.label:
@@ -164,9 +187,14 @@ class ArcsRenderer(BaseRenderer):
             if date_str:
                 tooltip += f" ({date_str})"
 
+            # Use shifted longitude if this location crossed the dateline
+            effective_lon = loc.lon
+            if loc.name in lon_offset_by_name:
+                effective_lon = loc.lon + lon_offset_by_name[loc.name]
+
             # Use numbered markers to show order
             folium.CircleMarker(
-                location=[loc.lat, loc.lon],
+                location=[loc.lat, effective_lon],
                 radius=10,
                 popup=folium.Popup(popup_content, max_width=200),
                 tooltip=tooltip,
@@ -179,37 +207,13 @@ class ArcsRenderer(BaseRenderer):
 
             # Add number label
             folium.Marker(
-                location=[loc.lat, loc.lon],
+                location=[loc.lat, effective_lon],
                 icon=folium.DivIcon(
                     html=f'<div style="font-size: 10px; color: white; font-weight: bold; text-align: center; line-height: 20px;">{i + 1}</div>',
                     icon_size=(20, 20),
                     icon_anchor=(10, 10),
                 ),
             ).add_to(m)
-
-            # Add duplicate marker at shifted position if this location crosses dateline
-            if i in shifted_positions:
-                shifted_lon = shifted_positions[i]
-                folium.CircleMarker(
-                    location=[loc.lat, shifted_lon],
-                    radius=10,
-                    popup=folium.Popup(popup_content, max_width=200),
-                    tooltip=tooltip,
-                    color=self.marker_color,
-                    fill=True,
-                    fill_color=self.marker_color,
-                    fill_opacity=0.8,
-                    weight=2,
-                ).add_to(m)
-
-                folium.Marker(
-                    location=[loc.lat, shifted_lon],
-                    icon=folium.DivIcon(
-                        html=f'<div style="font-size: 10px; color: white; font-weight: bold; text-align: center; line-height: 20px;">{i + 1}</div>',
-                        icon_size=(20, 20),
-                        icon_anchor=(10, 10),
-                    ),
-                ).add_to(m)
 
         # Add home marker if routes_from_home is enabled
         if self.config.routes_from_home:

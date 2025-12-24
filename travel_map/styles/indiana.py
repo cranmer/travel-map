@@ -59,8 +59,15 @@ class IndianaJonesRenderer(BaseRenderer):
 
         return points
 
+    def _should_go_westward(self, from_lon: float, to_lon: float) -> bool:
+        """Determine if arc should go westward (across Pacific) or eastward."""
+        nepal_longitude = 85.0
+        if from_lon < 0 and to_lon > nepal_longitude:
+            return True
+        return False
+
     def _unwrap_longitudes(
-        self, points: list[tuple[float, float]]
+        self, points: list[tuple[float, float]], force_westward: bool = False
     ) -> list[tuple[float, float]]:
         """Unwrap longitude values to make them continuous across the dateline."""
         if len(points) < 2:
@@ -83,6 +90,13 @@ class IndianaJonesRenderer(BaseRenderer):
                 curr_lon += 360
 
             unwrapped.append((curr_lat, curr_lon))
+
+        # If we should go westward but ended up going east, shift everything
+        if force_westward and len(unwrapped) > 1:
+            start_lon = unwrapped[0][1]
+            end_lon = unwrapped[-1][1]
+            if end_lon > start_lon:
+                unwrapped = [(lat, lon - 360) for lat, lon in unwrapped]
 
         return unwrapped
 
@@ -186,13 +200,17 @@ class IndianaJonesRenderer(BaseRenderer):
             # Get the offset for from_loc (for multi-leg trips crossing dateline)
             from_offset = lon_offset_by_name.get(from_loc.name, 0)
 
+            # Determine if this arc should go westward (across Pacific)
+            effective_from_lon = from_loc.lon + from_offset
+            force_westward = self._should_go_westward(effective_from_lon, to_loc.lon)
+
             arc_points = self._interpolate_great_circle(
                 from_loc.lat, from_loc.lon,
                 to_loc.lat, to_loc.lon,
             )
 
             # Unwrap longitudes to make continuous across dateline
-            arc_points = self._unwrap_longitudes(arc_points)
+            arc_points = self._unwrap_longitudes(arc_points, force_westward=force_westward)
 
             # If we have a from_offset, apply it to all points
             # (the interpolation normalizes longitudes, so we need to shift them back)
@@ -248,13 +266,7 @@ class IndianaJonesRenderer(BaseRenderer):
                 ),
             ).add_to(m)
 
-        # Convert to shifted_positions (by index) for markers
-        shifted_positions = {}
-        for idx, loc in enumerate(self.config.locations):
-            if loc.name in lon_offset_by_name:
-                shifted_positions[idx] = loc.lon + lon_offset_by_name[loc.name]
-
-        # Add location markers (red circles with vintage feel)
+        # Add location markers at their effective positions (red circles with vintage feel)
         for i, loc in enumerate(self.config.locations):
             popup_content = f"<b style='font-family: Georgia, serif;'>{loc.name}</b>"
             if loc.label:
@@ -263,8 +275,13 @@ class IndianaJonesRenderer(BaseRenderer):
             if date_str:
                 popup_content += f"<br><span style='color: #8b4513;'>{date_str}</span>"
 
+            # Use shifted longitude if this location crossed the dateline
+            effective_lon = loc.lon
+            if loc.name in lon_offset_by_name:
+                effective_lon = loc.lon + lon_offset_by_name[loc.name]
+
             folium.CircleMarker(
-                location=[loc.lat, loc.lon],
+                location=[loc.lat, effective_lon],
                 radius=8,
                 popup=folium.Popup(popup_content, max_width=200),
                 tooltip=loc.name,
@@ -274,21 +291,6 @@ class IndianaJonesRenderer(BaseRenderer):
                 fill_opacity=0.9,
                 weight=2,
             ).add_to(m)
-
-            # Add duplicate marker at shifted position if this location crosses dateline
-            if i in shifted_positions:
-                shifted_lon = shifted_positions[i]
-                folium.CircleMarker(
-                    location=[loc.lat, shifted_lon],
-                    radius=8,
-                    popup=folium.Popup(popup_content, max_width=200),
-                    tooltip=loc.name,
-                    color=self.path_color,
-                    fill=True,
-                    fill_color=self.path_color,
-                    fill_opacity=0.9,
-                    weight=2,
-                ).add_to(m)
 
         # Vintage-style title
         title_html = f'''
