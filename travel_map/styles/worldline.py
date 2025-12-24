@@ -4,6 +4,12 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np
 from PIL import Image
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')  # Non-interactive backend
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+import cartopy.io.img_tiles as cimgt
 import io
 from datetime import datetime, timedelta
 
@@ -14,11 +20,80 @@ from ..config import TravelConfig
 class WorldlineRenderer(BaseRenderer):
     """Render maps as 3D worldline visualization with time on vertical axis."""
 
-    def __init__(self, config: TravelConfig):
+    def __init__(self, config: TravelConfig, map_opacity: float = 0.5, base_map_opacity: float = 0.9):
         super().__init__(config)
         self.path_color = "#e74c3c"  # Red for worldlines
         self.marker_color = "#3498db"  # Blue for location markers
         self.home_color = "#2ecc71"  # Green for home
+        self.home_line_color = "#27ae60"  # Darker green for home vertical line
+        self.map_opacity = map_opacity  # Opacity for trip-level map surfaces
+        self.base_map_opacity = base_map_opacity  # Opacity for bottom base map
+        self._map_image_cache = {}  # Cache rendered map images
+
+    def _render_map_image(
+        self,
+        lon_range: tuple[float, float],
+        lat_range: tuple[float, float],
+        resolution: int = 200
+    ) -> np.ndarray:
+        """Render a map image using cartopy Natural Earth features and return as RGB array.
+
+        Returns array of shape (resolution, resolution, 3) with RGB values 0-255.
+        """
+        cache_key = (lon_range, lat_range, resolution)
+        if cache_key in self._map_image_cache:
+            return self._map_image_cache[cache_key]
+
+        # Calculate appropriate zoom level based on extent
+        lon_span = lon_range[1] - lon_range[0]
+        zoom_level = max(1, min(8, int(8 - np.log2(lon_span / 45))))
+
+        # Create figure - size determines output resolution
+        dpi = 100
+        fig_size = resolution / dpi
+        fig = plt.figure(figsize=(fig_size, fig_size), dpi=dpi)
+        ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
+
+        # Set extent
+        ax.set_extent([lon_range[0], lon_range[1], lat_range[0], lat_range[1]], crs=ccrs.PlateCarree())
+
+        # Use cartopy's built-in Natural Earth features for reliable, detailed maps
+        # Colors chosen to match CartoDB Positron style
+        ax.add_feature(cfeature.OCEAN, facecolor='#aad3df', zorder=0)
+        ax.add_feature(cfeature.LAND, facecolor='#f5f3e5', zorder=1)
+        ax.add_feature(cfeature.COASTLINE, linewidth=0.3, edgecolor='#999999', zorder=2)
+        ax.add_feature(cfeature.BORDERS, linewidth=0.2, edgecolor='#cccccc', linestyle='-', zorder=2)
+        ax.add_feature(cfeature.LAKES, facecolor='#aad3df', zorder=1)
+        ax.add_feature(cfeature.RIVERS, edgecolor='#aad3df', linewidth=0.2, zorder=1)
+
+        # Add more detail with states/provinces for higher zoom
+        if zoom_level >= 4:
+            states = cfeature.NaturalEarthFeature(
+                'cultural', 'admin_1_states_provinces_lines', '50m',
+                edgecolor='#dddddd', facecolor='none', linewidth=0.15
+            )
+            ax.add_feature(states, zorder=2)
+
+        # Remove axes and margins
+        ax.set_frame_on(False)
+        ax.axis('off')
+        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+
+        # Render to image buffer
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', bbox_inches='tight', pad_inches=0,
+                    transparent=False, facecolor='white')
+        buf.seek(0)
+        plt.close(fig)
+
+        # Load and resize to exact resolution
+        img = Image.open(buf)
+        img = img.convert('RGB')
+        img = img.resize((resolution, resolution), Image.Resampling.LANCZOS)
+        img_array = np.array(img)
+
+        self._map_image_cache[cache_key] = img_array
+        return img_array
 
     def _normalize_time(self, locations: list) -> tuple[list[float], datetime, datetime]:
         """Convert dates to normalized time values (0-1 range).
@@ -112,9 +187,16 @@ class WorldlineRenderer(BaseRenderer):
         time_level: float,
         lon_range: tuple[float, float],
         lat_range: tuple[float, float],
-        resolution: int = 50
+        resolution: int = 200,
+        opacity: float = None
     ) -> go.Surface:
-        """Create a semi-transparent surface representing the map at a time level."""
+        """Create a semi-transparent surface with real map imagery at a time level."""
+        if opacity is None:
+            opacity = self.map_opacity
+
+        # Render actual map using cartopy with web tiles
+        map_img = self._render_map_image(lon_range, lat_range, resolution)
+
         lons = np.linspace(lon_range[0], lon_range[1], resolution)
         lats = np.linspace(lat_range[0], lat_range[1], resolution)
         lon_grid, lat_grid = np.meshgrid(lons, lats)
@@ -122,30 +204,46 @@ class WorldlineRenderer(BaseRenderer):
         # Create a flat surface at the given time level
         z_grid = np.full_like(lon_grid, time_level)
 
-        # Simple land/ocean coloring based on rough continental outlines
-        # This is a simplified version - could be enhanced with actual coastline data
-        colors = np.zeros((resolution, resolution))
+        # Flip vertically because image y-axis is inverted relative to lat
+        map_img = np.flipud(map_img)
 
-        for i, lat in enumerate(lats):
-            for j, lon in enumerate(lons):
-                # Very rough approximation of land masses
-                if self._is_land(lat, lon):
-                    colors[i, j] = 0.7  # Land
-                else:
-                    colors[i, j] = 0.3  # Ocean
+        # Pack RGB into a single value for surfacecolor (0-1 range)
+        # We'll create a colorscale that maps these packed values back to RGB
+        r = map_img[:, :, 0].astype(float) / 255.0
+        g = map_img[:, :, 1].astype(float) / 255.0
+        b = map_img[:, :, 2].astype(float) / 255.0
+
+        # Use grayscale-ish encoding that preserves color variation
+        # Weight by luminance but keep some color info
+        colors = 0.299 * r + 0.587 * g + 0.114 * b
+
+        # Build a colorscale from sampled image colors
+        # Sample colors at regular intervals to build the colorscale
+        num_stops = 64
+        colorscale = []
+        for i in range(num_stops):
+            val = i / (num_stops - 1)
+            # Find pixels with this approximate value
+            mask = np.abs(colors - val) < (1.0 / num_stops)
+            if np.any(mask):
+                # Average the RGB values for pixels in this range
+                avg_r = int(np.mean(map_img[:, :, 0][mask]))
+                avg_g = int(np.mean(map_img[:, :, 1][mask]))
+                avg_b = int(np.mean(map_img[:, :, 2][mask]))
+            else:
+                # Interpolate gray
+                avg_r = avg_g = avg_b = int(val * 255)
+            colorscale.append([val, f'rgba({avg_r}, {avg_g}, {avg_b}, {opacity})'])
 
         return go.Surface(
             x=lon_grid,
             y=lat_grid,
             z=z_grid,
             surfacecolor=colors,
-            colorscale=[
-                [0, 'rgba(100, 149, 237, 0.3)'],  # Ocean - light blue, transparent
-                [1, 'rgba(144, 238, 144, 0.3)']   # Land - light green, transparent
-            ],
+            colorscale=colorscale,
             showscale=False,
             hoverinfo='skip',
-            opacity=0.5,
+            opacity=opacity,
         )
 
     def _is_land(self, lat: float, lon: float) -> bool:
@@ -195,22 +293,47 @@ class WorldlineRenderer(BaseRenderer):
 
         fig = go.Figure()
 
-        # Add semi-transparent map surfaces at different time levels
-        time_levels = [0.0, 0.25, 0.5, 0.75, 1.0]
-        for t in time_levels:
-            surface = self._create_map_surface(t, lon_range, lat_range, resolution=30)
+        # Add base map at bottom of cube (slightly below 0 to be visible)
+        base_surface = self._create_map_surface(
+            -0.02, lon_range, lat_range, resolution=300, opacity=self.base_map_opacity
+        )
+        fig.add_trace(base_surface)
+
+        # Get unique trip time levels from the actual location dates
+        trip_times = sorted(set(normalized_times))
+        # Filter out times very close to 0 (already have base map there)
+        trip_times = [t for t in trip_times if t > 0.05]
+
+        # Add semi-transparent map surfaces at each trip's time level
+        for t in trip_times:
+            surface = self._create_map_surface(
+                t, lon_range, lat_range, resolution=200, opacity=self.map_opacity
+            )
             fig.add_trace(surface)
 
-        # Add worldline paths
+        # Add vertical line at home location (time axis)
+        home = self.config.get_home()
+        fig.add_trace(go.Scatter3d(
+            x=[home.lon, home.lon],
+            y=[home.lat, home.lat],
+            z=[-0.02, 1.02],
+            mode='lines',
+            line=dict(color=self.home_line_color, width=8, dash='dot'),
+            name='Home Timeline',
+            hoverinfo='name',
+        ))
+
+        # Add worldline paths (outbound and return)
         routes = self.config.get_routes()
         for from_loc, to_loc in routes:
             from_time = loc_times.get(from_loc.name, 0.5)
             to_time = loc_times.get(to_loc.name, 0.5)
 
             # For home, use the destination's time minus a small offset
-            if from_loc.name == self.config.get_home().name:
+            if from_loc.name == home.name:
                 from_time = max(0, to_time - 0.02)
 
+            # Outbound arc
             lons_path, lats_path, times_path = self._create_worldline_trace(
                 from_loc, to_loc, from_time, to_time
             )
@@ -224,6 +347,24 @@ class WorldlineRenderer(BaseRenderer):
                 name=f"{from_loc.name} → {to_loc.name}",
                 hoverinfo='name',
             ))
+
+        # Add return arcs from each location back to home (same day)
+        if self.config.routes_from_home:
+            for loc, loc_time in zip(locations, normalized_times):
+                # Create return arc at the same time level (horizontal arc back to home)
+                return_time = loc_time + 0.01  # Slightly after arrival
+                lons_path, lats_path, times_path = self._create_worldline_trace(
+                    loc, home, loc_time, return_time
+                )
+                fig.add_trace(go.Scatter3d(
+                    x=lons_path,
+                    y=lats_path,
+                    z=times_path,
+                    mode='lines',
+                    line=dict(color=self.path_color, width=3, dash='dash'),
+                    name=f"{loc.name} → Home",
+                    hoverinfo='name',
+                ))
 
         # Add location markers
         marker_lons = [loc.lon for loc in locations]
@@ -357,19 +498,42 @@ class WorldlineRenderer(BaseRenderer):
 
         fig = go.Figure()
 
-        # Add map surfaces
-        time_levels = [0.0, 0.33, 0.66, 1.0]
-        for t in time_levels:
-            surface = self._create_map_surface(t, lon_range, lat_range, resolution=40)
+        # Add base map at bottom of cube (slightly below 0 to be visible)
+        base_surface = self._create_map_surface(
+            -0.02, lon_range, lat_range, resolution=300, opacity=self.base_map_opacity
+        )
+        fig.add_trace(base_surface)
+
+        # Get unique trip time levels from the actual location dates
+        trip_times = sorted(set(normalized_times))
+        # Filter out times very close to 0 (already have base map there)
+        trip_times = [t for t in trip_times if t > 0.05]
+
+        # Add semi-transparent map surfaces at each trip's time level
+        for t in trip_times:
+            surface = self._create_map_surface(
+                t, lon_range, lat_range, resolution=200, opacity=self.map_opacity
+            )
             fig.add_trace(surface)
 
-        # Add worldline paths
+        # Add vertical line at home location (time axis)
+        home = self.config.get_home()
+        fig.add_trace(go.Scatter3d(
+            x=[home.lon, home.lon],
+            y=[home.lat, home.lat],
+            z=[-0.02, 1.02],
+            mode='lines',
+            line=dict(color=self.home_line_color, width=8, dash='dot'),
+            showlegend=False,
+        ))
+
+        # Add worldline paths (outbound)
         routes = self.config.get_routes()
         for from_loc, to_loc in routes:
             from_time = loc_times.get(from_loc.name, 0.5)
             to_time = loc_times.get(to_loc.name, 0.5)
 
-            if from_loc.name == self.config.get_home().name:
+            if from_loc.name == home.name:
                 from_time = max(0, to_time - 0.02)
 
             lons_path, lats_path, times_path = self._create_worldline_trace(
@@ -384,6 +548,22 @@ class WorldlineRenderer(BaseRenderer):
                 line=dict(color=self.path_color, width=5),
                 showlegend=False,
             ))
+
+        # Add return arcs from each location back to home (same day)
+        if self.config.routes_from_home:
+            for loc, loc_time in zip(locations, normalized_times):
+                return_time = loc_time + 0.01
+                lons_path, lats_path, times_path = self._create_worldline_trace(
+                    loc, home, loc_time, return_time
+                )
+                fig.add_trace(go.Scatter3d(
+                    x=lons_path,
+                    y=lats_path,
+                    z=times_path,
+                    mode='lines',
+                    line=dict(color=self.path_color, width=4, dash='dash'),
+                    showlegend=False,
+                ))
 
         # Add markers
         fig.add_trace(go.Scatter3d(
