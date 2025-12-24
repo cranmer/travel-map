@@ -78,7 +78,7 @@ class TravelConfig:
 
     def __post_init__(self):
         """Validate configuration after initialization."""
-        valid_styles = ["pins", "arcs", "indiana_jones"]
+        valid_styles = ["pins", "arcs", "indiana_jones", "worldline"]
         if self.style not in valid_styles:
             raise ValueError(f"Invalid style '{self.style}'. Must be one of: {valid_styles}")
 
