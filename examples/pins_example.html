@@ -1,0 +1,827 @@
+<div style="width:100%;"><div style="position:relative;width:100%;height:0;padding-bottom:60%;"><span style="color:#565656">Make this Notebook Trusted to load map: File -> Trust Notebook</span><iframe srcdoc="&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+&lt;head&gt;
+    
+    &lt;meta http-equiv=&quot;content-type&quot; content=&quot;text/html; charset=UTF-8&quot; /&gt;
+    &lt;script src=&quot;https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js&quot;&gt;&lt;/script&gt;
+    &lt;script src=&quot;https://code.jquery.com/jquery-3.7.1.min.js&quot;&gt;&lt;/script&gt;
+    &lt;script src=&quot;https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js&quot;&gt;&lt;/script&gt;
+    &lt;script src=&quot;https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js&quot;&gt;&lt;/script&gt;
+    &lt;link rel=&quot;stylesheet&quot; href=&quot;https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css&quot;/&gt;
+    &lt;link rel=&quot;stylesheet&quot; href=&quot;https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css&quot;/&gt;
+    &lt;link rel=&quot;stylesheet&quot; href=&quot;https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css&quot;/&gt;
+    &lt;link rel=&quot;stylesheet&quot; href=&quot;https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css&quot;/&gt;
+    &lt;link rel=&quot;stylesheet&quot; href=&quot;https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css&quot;/&gt;
+    &lt;link rel=&quot;stylesheet&quot; href=&quot;https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css&quot;/&gt;
+    
+            &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no&quot; /&gt;
+            &lt;style&gt;
+                #map_f2674b3dc11828097e93bcb7160107a1 {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            &lt;/style&gt;
+
+            &lt;style&gt;html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            &lt;/style&gt;
+
+            &lt;style&gt;#map {
+                position:absolute;
+                top:0;
+                bottom:0;
+                right:0;
+                left:0;
+                }
+            &lt;/style&gt;
+
+            &lt;script&gt;
+                L_NO_TOUCH = false;
+                L_DISABLE_3D = false;
+            &lt;/script&gt;
+
+        
+&lt;/head&gt;
+&lt;body&gt;
+    
+    
+            &lt;div class=&quot;folium-map&quot; id=&quot;map_f2674b3dc11828097e93bcb7160107a1&quot; &gt;&lt;/div&gt;
+        
+&lt;/body&gt;
+&lt;script&gt;
+    
+    
+            var map_f2674b3dc11828097e93bcb7160107a1 = L.map(
+                &quot;map_f2674b3dc11828097e93bcb7160107a1&quot;,
+                {
+                    center: [37.13606753333333, -33.056893933333335],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  &quot;zoom&quot;: 4,
+  &quot;zoomControl&quot;: true,
+  &quot;preferCanvas&quot;: false,
+}
+
+                }
+            );
+
+            
+
+        
+    
+            var tile_layer_6281086e26be5daadedc31c314492989 = L.tileLayer(
+                &quot;https://tile.openstreetmap.org/{z}/{x}/{y}.png&quot;,
+                {
+  &quot;minZoom&quot;: 0,
+  &quot;maxZoom&quot;: 19,
+  &quot;maxNativeZoom&quot;: 19,
+  &quot;noWrap&quot;: false,
+  &quot;attribution&quot;: &quot;\u0026copy; \u003ca href=\&quot;https://www.openstreetmap.org/copyright\&quot;\u003eOpenStreetMap\u003c/a\u003e contributors&quot;,
+  &quot;subdomains&quot;: &quot;abc&quot;,
+  &quot;detectRetina&quot;: false,
+  &quot;tms&quot;: false,
+  &quot;opacity&quot;: 1,
+}
+
+            );
+        
+    
+            tile_layer_6281086e26be5daadedc31c314492989.addTo(map_f2674b3dc11828097e93bcb7160107a1);
+        
+    
+            map_f2674b3dc11828097e93bcb7160107a1.fitBounds(
+                [[7.400631000000001, -120.1167], [55.557064, 123.494347]],
+                {}
+            );
+        
+    
+            var marker_70d1d70d7dda20b63a9a210692fe25b8 = L.marker(
+                [46.223133, 6.127853],
+                {
+}
+            ).addTo(map_f2674b3dc11828097e93bcb7160107a1);
+        
+    
+            var icon_f3d04d59292292d0e3dcfec1e30b2d5a = L.AwesomeMarkers.icon(
+                {
+  &quot;markerColor&quot;: &quot;red&quot;,
+  &quot;iconColor&quot;: &quot;white&quot;,
+  &quot;icon&quot;: &quot;info-sign&quot;,
+  &quot;prefix&quot;: &quot;glyphicon&quot;,
+  &quot;extraClasses&quot;: &quot;fa-rotate-0&quot;,
+}
+            );
+        
+    
+        var popup_a5b206e3831c274fd3086556e9468d19 = L.popup({
+  &quot;maxWidth&quot;: 200,
+});
+
+        
+            
+                var html_755d899100e4856998db2836c0171831 = $(`&lt;div id=&quot;html_755d899100e4856998db2836c0171831&quot; style=&quot;width: 100.0%; height: 100.0%;&quot;&gt;&lt;b&gt;Geneva&lt;/b&gt;&lt;br&gt;&lt;i&gt;Jan 16, 2025&lt;/i&gt;&lt;/div&gt;`)[0];
+                popup_a5b206e3831c274fd3086556e9468d19.setContent(html_755d899100e4856998db2836c0171831);
+            
+        
+
+        marker_70d1d70d7dda20b63a9a210692fe25b8.bindPopup(popup_a5b206e3831c274fd3086556e9468d19)
+        ;
+
+        
+    
+    
+            marker_70d1d70d7dda20b63a9a210692fe25b8.bindTooltip(
+                `&lt;div&gt;
+                     Geneva (Jan 16, 2025)
+                 &lt;/div&gt;`,
+                {
+  &quot;sticky&quot;: true,
+}
+            );
+        
+    
+                marker_70d1d70d7dda20b63a9a210692fe25b8.setIcon(icon_f3d04d59292292d0e3dcfec1e30b2d5a);
+            
+    
+            var marker_941f9f5ca6202b54067624a4177f03f8 = L.marker(
+                [53.557064, 9.971044],
+                {
+}
+            ).addTo(map_f2674b3dc11828097e93bcb7160107a1);
+        
+    
+            var icon_10b4bd83f74aa2808de95bccbd6bb16e = L.AwesomeMarkers.icon(
+                {
+  &quot;markerColor&quot;: &quot;red&quot;,
+  &quot;iconColor&quot;: &quot;white&quot;,
+  &quot;icon&quot;: &quot;info-sign&quot;,
+  &quot;prefix&quot;: &quot;glyphicon&quot;,
+  &quot;extraClasses&quot;: &quot;fa-rotate-0&quot;,
+}
+            );
+        
+    
+        var popup_11c141d20c176ac95613deb5e777d930 = L.popup({
+  &quot;maxWidth&quot;: 200,
+});
+
+        
+            
+                var html_6a1d23f7c9119e8b9825f57357964fe8 = $(`&lt;div id=&quot;html_6a1d23f7c9119e8b9825f57357964fe8&quot; style=&quot;width: 100.0%; height: 100.0%;&quot;&gt;&lt;b&gt;Hamburg&lt;/b&gt;&lt;br&gt;&lt;i&gt;Feb 15, 2025&lt;/i&gt;&lt;/div&gt;`)[0];
+                popup_11c141d20c176ac95613deb5e777d930.setContent(html_6a1d23f7c9119e8b9825f57357964fe8);
+            
+        
+
+        marker_941f9f5ca6202b54067624a4177f03f8.bindPopup(popup_11c141d20c176ac95613deb5e777d930)
+        ;
+
+        
+    
+    
+            marker_941f9f5ca6202b54067624a4177f03f8.bindTooltip(
+                `&lt;div&gt;
+                     Hamburg (Feb 15, 2025)
+                 &lt;/div&gt;`,
+                {
+  &quot;sticky&quot;: true,
+}
+            );
+        
+    
+                marker_941f9f5ca6202b54067624a4177f03f8.setIcon(icon_10b4bd83f74aa2808de95bccbd6bb16e);
+            
+    
+            var marker_11ce8982cfe00d7fb06fdefe1de74fb0 = L.marker(
+                [32.321822, -110.845664],
+                {
+}
+            ).addTo(map_f2674b3dc11828097e93bcb7160107a1);
+        
+    
+            var icon_b5cdb9422b92edcc71a69c479249f806 = L.AwesomeMarkers.icon(
+                {
+  &quot;markerColor&quot;: &quot;red&quot;,
+  &quot;iconColor&quot;: &quot;white&quot;,
+  &quot;icon&quot;: &quot;info-sign&quot;,
+  &quot;prefix&quot;: &quot;glyphicon&quot;,
+  &quot;extraClasses&quot;: &quot;fa-rotate-0&quot;,
+}
+            );
+        
+    
+        var popup_41733cdd4d5bda2d6c26b7413ec168d0 = L.popup({
+  &quot;maxWidth&quot;: 200,
+});
+
+        
+            
+                var html_20d04be68e79849df5144463f5339b1d = $(`&lt;div id=&quot;html_20d04be68e79849df5144463f5339b1d&quot; style=&quot;width: 100.0%; height: 100.0%;&quot;&gt;&lt;b&gt;Tucson&lt;/b&gt;&lt;br&gt;&lt;i&gt;Mar 10, 2025&lt;/i&gt;&lt;/div&gt;`)[0];
+                popup_41733cdd4d5bda2d6c26b7413ec168d0.setContent(html_20d04be68e79849df5144463f5339b1d);
+            
+        
+
+        marker_11ce8982cfe00d7fb06fdefe1de74fb0.bindPopup(popup_41733cdd4d5bda2d6c26b7413ec168d0)
+        ;
+
+        
+    
+    
+            marker_11ce8982cfe00d7fb06fdefe1de74fb0.bindTooltip(
+                `&lt;div&gt;
+                     Tucson (Mar 10, 2025)
+                 &lt;/div&gt;`,
+                {
+  &quot;sticky&quot;: true,
+}
+            );
+        
+    
+                marker_11ce8982cfe00d7fb06fdefe1de74fb0.setIcon(icon_b5cdb9422b92edcc71a69c479249f806);
+            
+    
+            var marker_b524de4a39dfea6835d3f4acc28529b6 = L.marker(
+                [9.400631, -84.168083],
+                {
+}
+            ).addTo(map_f2674b3dc11828097e93bcb7160107a1);
+        
+    
+            var icon_7e90bbc14590fe964f952fc2ee36f6f1 = L.AwesomeMarkers.icon(
+                {
+  &quot;markerColor&quot;: &quot;red&quot;,
+  &quot;iconColor&quot;: &quot;white&quot;,
+  &quot;icon&quot;: &quot;info-sign&quot;,
+  &quot;prefix&quot;: &quot;glyphicon&quot;,
+  &quot;extraClasses&quot;: &quot;fa-rotate-0&quot;,
+}
+            );
+        
+    
+        var popup_4e303dc82485179eff33997a8ead3c28 = L.popup({
+  &quot;maxWidth&quot;: 200,
+});
+
+        
+            
+                var html_c3fb813d662653b55f5fa795db74d865 = $(`&lt;div id=&quot;html_c3fb813d662653b55f5fa795db74d865&quot; style=&quot;width: 100.0%; height: 100.0%;&quot;&gt;&lt;b&gt;Costa Rica&lt;/b&gt;&lt;br&gt;&lt;i&gt;Mar 24, 2025&lt;/i&gt;&lt;/div&gt;`)[0];
+                popup_4e303dc82485179eff33997a8ead3c28.setContent(html_c3fb813d662653b55f5fa795db74d865);
+            
+        
+
+        marker_b524de4a39dfea6835d3f4acc28529b6.bindPopup(popup_4e303dc82485179eff33997a8ead3c28)
+        ;
+
+        
+    
+    
+            marker_b524de4a39dfea6835d3f4acc28529b6.bindTooltip(
+                `&lt;div&gt;
+                     Costa Rica (Mar 24, 2025)
+                 &lt;/div&gt;`,
+                {
+  &quot;sticky&quot;: true,
+}
+            );
+        
+    
+                marker_b524de4a39dfea6835d3f4acc28529b6.setIcon(icon_7e90bbc14590fe964f952fc2ee36f6f1);
+            
+    
+            var marker_6a7657c0fd3e40de2eaf05434cab315d = L.marker(
+                [31.246608, 121.494347],
+                {
+}
+            ).addTo(map_f2674b3dc11828097e93bcb7160107a1);
+        
+    
+            var icon_1cc2d1b26fc6d8e1f7c32896e4aa5480 = L.AwesomeMarkers.icon(
+                {
+  &quot;markerColor&quot;: &quot;red&quot;,
+  &quot;iconColor&quot;: &quot;white&quot;,
+  &quot;icon&quot;: &quot;info-sign&quot;,
+  &quot;prefix&quot;: &quot;glyphicon&quot;,
+  &quot;extraClasses&quot;: &quot;fa-rotate-0&quot;,
+}
+            );
+        
+    
+        var popup_c42311a9aba5b1095f5af86937452f87 = L.popup({
+  &quot;maxWidth&quot;: 200,
+});
+
+        
+            
+                var html_a6155f03676e49877bcca06018581348 = $(`&lt;div id=&quot;html_a6155f03676e49877bcca06018581348&quot; style=&quot;width: 100.0%; height: 100.0%;&quot;&gt;&lt;b&gt;Shanghai&lt;/b&gt;&lt;br&gt;&lt;i&gt;Apr 25, 2025&lt;/i&gt;&lt;/div&gt;`)[0];
+                popup_c42311a9aba5b1095f5af86937452f87.setContent(html_a6155f03676e49877bcca06018581348);
+            
+        
+
+        marker_6a7657c0fd3e40de2eaf05434cab315d.bindPopup(popup_c42311a9aba5b1095f5af86937452f87)
+        ;
+
+        
+    
+    
+            marker_6a7657c0fd3e40de2eaf05434cab315d.bindTooltip(
+                `&lt;div&gt;
+                     Shanghai (Apr 25, 2025)
+                 &lt;/div&gt;`,
+                {
+  &quot;sticky&quot;: true,
+}
+            );
+        
+    
+                marker_6a7657c0fd3e40de2eaf05434cab315d.setIcon(icon_1cc2d1b26fc6d8e1f7c32896e4aa5480);
+            
+    
+            var marker_b99129619aa696ec0938ba204b1a5a39 = L.marker(
+                [22.2927, 114.171478],
+                {
+}
+            ).addTo(map_f2674b3dc11828097e93bcb7160107a1);
+        
+    
+            var icon_be7241ad027dc8c4ff8913f8cfa7fc8e = L.AwesomeMarkers.icon(
+                {
+  &quot;markerColor&quot;: &quot;red&quot;,
+  &quot;iconColor&quot;: &quot;white&quot;,
+  &quot;icon&quot;: &quot;info-sign&quot;,
+  &quot;prefix&quot;: &quot;glyphicon&quot;,
+  &quot;extraClasses&quot;: &quot;fa-rotate-0&quot;,
+}
+            );
+        
+    
+        var popup_7e81c3a76caa73649758707279621af0 = L.popup({
+  &quot;maxWidth&quot;: 200,
+});
+
+        
+            
+                var html_1a4aed4ea5fee50400e86728d6834ed0 = $(`&lt;div id=&quot;html_1a4aed4ea5fee50400e86728d6834ed0&quot; style=&quot;width: 100.0%; height: 100.0%;&quot;&gt;&lt;b&gt;Hong Kong&lt;/b&gt;&lt;br&gt;&lt;i&gt;Apr 29, 2025&lt;/i&gt;&lt;/div&gt;`)[0];
+                popup_7e81c3a76caa73649758707279621af0.setContent(html_1a4aed4ea5fee50400e86728d6834ed0);
+            
+        
+
+        marker_b99129619aa696ec0938ba204b1a5a39.bindPopup(popup_7e81c3a76caa73649758707279621af0)
+        ;
+
+        
+    
+    
+            marker_b99129619aa696ec0938ba204b1a5a39.bindTooltip(
+                `&lt;div&gt;
+                     Hong Kong (Apr 29, 2025)
+                 &lt;/div&gt;`,
+                {
+  &quot;sticky&quot;: true,
+}
+            );
+        
+    
+                marker_b99129619aa696ec0938ba204b1a5a39.setIcon(icon_be7241ad027dc8c4ff8913f8cfa7fc8e);
+            
+    
+            var marker_838eccc2ef3d2b4b09ea4cc65550ba20 = L.marker(
+                [27.946828, -82.459183],
+                {
+}
+            ).addTo(map_f2674b3dc11828097e93bcb7160107a1);
+        
+    
+            var icon_5578aaeba93be921992fa2934c227234 = L.AwesomeMarkers.icon(
+                {
+  &quot;markerColor&quot;: &quot;red&quot;,
+  &quot;iconColor&quot;: &quot;white&quot;,
+  &quot;icon&quot;: &quot;info-sign&quot;,
+  &quot;prefix&quot;: &quot;glyphicon&quot;,
+  &quot;extraClasses&quot;: &quot;fa-rotate-0&quot;,
+}
+            );
+        
+    
+        var popup_46652fd5b6e95887fa9bfb464c133d40 = L.popup({
+  &quot;maxWidth&quot;: 200,
+});
+
+        
+            
+                var html_1da7fbabb48a13711fc31b7acd6e3f67 = $(`&lt;div id=&quot;html_1da7fbabb48a13711fc31b7acd6e3f67&quot; style=&quot;width: 100.0%; height: 100.0%;&quot;&gt;&lt;b&gt;Tampa&lt;/b&gt;&lt;br&gt;&lt;i&gt;May 28, 2025&lt;/i&gt;&lt;/div&gt;`)[0];
+                popup_46652fd5b6e95887fa9bfb464c133d40.setContent(html_1da7fbabb48a13711fc31b7acd6e3f67);
+            
+        
+
+        marker_838eccc2ef3d2b4b09ea4cc65550ba20.bindPopup(popup_46652fd5b6e95887fa9bfb464c133d40)
+        ;
+
+        
+    
+    
+            marker_838eccc2ef3d2b4b09ea4cc65550ba20.bindTooltip(
+                `&lt;div&gt;
+                     Tampa (May 28, 2025)
+                 &lt;/div&gt;`,
+                {
+  &quot;sticky&quot;: true,
+}
+            );
+        
+    
+                marker_838eccc2ef3d2b4b09ea4cc65550ba20.setIcon(icon_5578aaeba93be921992fa2934c227234);
+            
+    
+            var marker_c1635155a7a3186d734769f6b0b1776d = L.marker(
+                [41.88565, -87.646981],
+                {
+}
+            ).addTo(map_f2674b3dc11828097e93bcb7160107a1);
+        
+    
+            var icon_13618f4540912bafd5aa9d40a7fafa85 = L.AwesomeMarkers.icon(
+                {
+  &quot;markerColor&quot;: &quot;red&quot;,
+  &quot;iconColor&quot;: &quot;white&quot;,
+  &quot;icon&quot;: &quot;info-sign&quot;,
+  &quot;prefix&quot;: &quot;glyphicon&quot;,
+  &quot;extraClasses&quot;: &quot;fa-rotate-0&quot;,
+}
+            );
+        
+    
+        var popup_763290f77ab55f8d336223b9c119ed37 = L.popup({
+  &quot;maxWidth&quot;: 200,
+});
+
+        
+            
+                var html_805e0ab7d2c37fbec2e73cf0fda6331a = $(`&lt;div id=&quot;html_805e0ab7d2c37fbec2e73cf0fda6331a&quot; style=&quot;width: 100.0%; height: 100.0%;&quot;&gt;&lt;b&gt;Chicago&lt;/b&gt;&lt;br&gt;&lt;i&gt;Jun 25, 2025&lt;/i&gt;&lt;/div&gt;`)[0];
+                popup_763290f77ab55f8d336223b9c119ed37.setContent(html_805e0ab7d2c37fbec2e73cf0fda6331a);
+            
+        
+
+        marker_c1635155a7a3186d734769f6b0b1776d.bindPopup(popup_763290f77ab55f8d336223b9c119ed37)
+        ;
+
+        
+    
+    
+            marker_c1635155a7a3186d734769f6b0b1776d.bindTooltip(
+                `&lt;div&gt;
+                     Chicago (Jun 25, 2025)
+                 &lt;/div&gt;`,
+                {
+  &quot;sticky&quot;: true,
+}
+            );
+        
+    
+                marker_c1635155a7a3186d734769f6b0b1776d.setIcon(icon_13618f4540912bafd5aa9d40a7fafa85);
+            
+    
+            var marker_b0366a53189106d4972c19bd18ecc91f = L.marker(
+                [48.859336, 2.266983],
+                {
+}
+            ).addTo(map_f2674b3dc11828097e93bcb7160107a1);
+        
+    
+            var icon_2a11692e7724c471647ed80ca2351c67 = L.AwesomeMarkers.icon(
+                {
+  &quot;markerColor&quot;: &quot;red&quot;,
+  &quot;iconColor&quot;: &quot;white&quot;,
+  &quot;icon&quot;: &quot;info-sign&quot;,
+  &quot;prefix&quot;: &quot;glyphicon&quot;,
+  &quot;extraClasses&quot;: &quot;fa-rotate-0&quot;,
+}
+            );
+        
+    
+        var popup_c14a672778664de0e77fe680c5cd650f = L.popup({
+  &quot;maxWidth&quot;: 200,
+});
+
+        
+            
+                var html_b1ca0d46e738c69ebaa70dbbd6d192a5 = $(`&lt;div id=&quot;html_b1ca0d46e738c69ebaa70dbbd6d192a5&quot; style=&quot;width: 100.0%; height: 100.0%;&quot;&gt;&lt;b&gt;Paris&lt;/b&gt;&lt;br&gt;&lt;i&gt;Jul 05, 2025&lt;/i&gt;&lt;/div&gt;`)[0];
+                popup_c14a672778664de0e77fe680c5cd650f.setContent(html_b1ca0d46e738c69ebaa70dbbd6d192a5);
+            
+        
+
+        marker_b0366a53189106d4972c19bd18ecc91f.bindPopup(popup_c14a672778664de0e77fe680c5cd650f)
+        ;
+
+        
+    
+    
+            marker_b0366a53189106d4972c19bd18ecc91f.bindTooltip(
+                `&lt;div&gt;
+                     Paris (Jul 05, 2025)
+                 &lt;/div&gt;`,
+                {
+  &quot;sticky&quot;: true,
+}
+            );
+        
+    
+                marker_b0366a53189106d4972c19bd18ecc91f.setIcon(icon_2a11692e7724c471647ed80ca2351c67);
+            
+    
+            var marker_a53234e76bc3453a1fc823378ee3f1ca = L.marker(
+                [43.280267, 5.353528],
+                {
+}
+            ).addTo(map_f2674b3dc11828097e93bcb7160107a1);
+        
+    
+            var icon_56aaafc5f8e8823d107ea183c1e558f3 = L.AwesomeMarkers.icon(
+                {
+  &quot;markerColor&quot;: &quot;red&quot;,
+  &quot;iconColor&quot;: &quot;white&quot;,
+  &quot;icon&quot;: &quot;info-sign&quot;,
+  &quot;prefix&quot;: &quot;glyphicon&quot;,
+  &quot;extraClasses&quot;: &quot;fa-rotate-0&quot;,
+}
+            );
+        
+    
+        var popup_bcd3bfad56f135a6f57a78ad3b0b92b5 = L.popup({
+  &quot;maxWidth&quot;: 200,
+});
+
+        
+            
+                var html_912a89e965b7b778b51c326bea68b730 = $(`&lt;div id=&quot;html_912a89e965b7b778b51c326bea68b730&quot; style=&quot;width: 100.0%; height: 100.0%;&quot;&gt;&lt;b&gt;Marseille&lt;/b&gt;&lt;br&gt;&lt;i&gt;Jul 09, 2025&lt;/i&gt;&lt;/div&gt;`)[0];
+                popup_bcd3bfad56f135a6f57a78ad3b0b92b5.setContent(html_912a89e965b7b778b51c326bea68b730);
+            
+        
+
+        marker_a53234e76bc3453a1fc823378ee3f1ca.bindPopup(popup_bcd3bfad56f135a6f57a78ad3b0b92b5)
+        ;
+
+        
+    
+    
+            marker_a53234e76bc3453a1fc823378ee3f1ca.bindTooltip(
+                `&lt;div&gt;
+                     Marseille (Jul 09, 2025)
+                 &lt;/div&gt;`,
+                {
+  &quot;sticky&quot;: true,
+}
+            );
+        
+    
+                marker_a53234e76bc3453a1fc823378ee3f1ca.setIcon(icon_56aaafc5f8e8823d107ea183c1e558f3);
+            
+    
+            var marker_61ae4cb0fd607e4b760c663e462151cc = L.marker(
+                [40.731322, -73.996942],
+                {
+}
+            ).addTo(map_f2674b3dc11828097e93bcb7160107a1);
+        
+    
+            var icon_db9e88023a567c0ecbaf1f5293c8e197 = L.AwesomeMarkers.icon(
+                {
+  &quot;markerColor&quot;: &quot;red&quot;,
+  &quot;iconColor&quot;: &quot;white&quot;,
+  &quot;icon&quot;: &quot;info-sign&quot;,
+  &quot;prefix&quot;: &quot;glyphicon&quot;,
+  &quot;extraClasses&quot;: &quot;fa-rotate-0&quot;,
+}
+            );
+        
+    
+        var popup_2a3085830ab028a76093baf1650239f6 = L.popup({
+  &quot;maxWidth&quot;: 200,
+});
+
+        
+            
+                var html_a4b5acc9c4e30af8f1a0cdb87fbb8516 = $(`&lt;div id=&quot;html_a4b5acc9c4e30af8f1a0cdb87fbb8516&quot; style=&quot;width: 100.0%; height: 100.0%;&quot;&gt;&lt;b&gt;New York&lt;/b&gt;&lt;br&gt;&lt;i&gt;Aug 09, 2025&lt;/i&gt;&lt;/div&gt;`)[0];
+                popup_2a3085830ab028a76093baf1650239f6.setContent(html_a4b5acc9c4e30af8f1a0cdb87fbb8516);
+            
+        
+
+        marker_61ae4cb0fd607e4b760c663e462151cc.bindPopup(popup_2a3085830ab028a76093baf1650239f6)
+        ;
+
+        
+    
+    
+            marker_61ae4cb0fd607e4b760c663e462151cc.bindTooltip(
+                `&lt;div&gt;
+                     New York (Aug 09, 2025)
+                 &lt;/div&gt;`,
+                {
+  &quot;sticky&quot;: true,
+}
+            );
+        
+    
+                marker_61ae4cb0fd607e4b760c663e462151cc.setIcon(icon_db9e88023a567c0ecbaf1f5293c8e197);
+            
+    
+            var marker_83514612f23e259bfa5132c1c0899477 = L.marker(
+                [49.385022, 8.568261],
+                {
+}
+            ).addTo(map_f2674b3dc11828097e93bcb7160107a1);
+        
+    
+            var icon_169a65afee0d1191982d097a0166b956 = L.AwesomeMarkers.icon(
+                {
+  &quot;markerColor&quot;: &quot;red&quot;,
+  &quot;iconColor&quot;: &quot;white&quot;,
+  &quot;icon&quot;: &quot;info-sign&quot;,
+  &quot;prefix&quot;: &quot;glyphicon&quot;,
+  &quot;extraClasses&quot;: &quot;fa-rotate-0&quot;,
+}
+            );
+        
+    
+        var popup_8afd286551bef389b443efc61945d4df = L.popup({
+  &quot;maxWidth&quot;: 200,
+});
+
+        
+            
+                var html_a02b6fe47164e13ed61f3f67e2c1cca3 = $(`&lt;div id=&quot;html_a02b6fe47164e13ed61f3f67e2c1cca3&quot; style=&quot;width: 100.0%; height: 100.0%;&quot;&gt;&lt;b&gt;Heidelberg&lt;/b&gt;&lt;br&gt;&lt;i&gt;Sep 15, 2025&lt;/i&gt;&lt;/div&gt;`)[0];
+                popup_8afd286551bef389b443efc61945d4df.setContent(html_a02b6fe47164e13ed61f3f67e2c1cca3);
+            
+        
+
+        marker_83514612f23e259bfa5132c1c0899477.bindPopup(popup_8afd286551bef389b443efc61945d4df)
+        ;
+
+        
+    
+    
+            marker_83514612f23e259bfa5132c1c0899477.bindTooltip(
+                `&lt;div&gt;
+                     Heidelberg (Sep 15, 2025)
+                 &lt;/div&gt;`,
+                {
+  &quot;sticky&quot;: true,
+}
+            );
+        
+    
+                marker_83514612f23e259bfa5132c1c0899477.setIcon(icon_169a65afee0d1191982d097a0166b956);
+            
+    
+            var marker_431baafae00fbae82da612fb04b2f573 = L.marker(
+                [34.128486, -118.1167],
+                {
+}
+            ).addTo(map_f2674b3dc11828097e93bcb7160107a1);
+        
+    
+            var icon_3acc88843539b474649587b628de279f = L.AwesomeMarkers.icon(
+                {
+  &quot;markerColor&quot;: &quot;red&quot;,
+  &quot;iconColor&quot;: &quot;white&quot;,
+  &quot;icon&quot;: &quot;info-sign&quot;,
+  &quot;prefix&quot;: &quot;glyphicon&quot;,
+  &quot;extraClasses&quot;: &quot;fa-rotate-0&quot;,
+}
+            );
+        
+    
+        var popup_19b789dce62aae777ffdce062ec44070 = L.popup({
+  &quot;maxWidth&quot;: 200,
+});
+
+        
+            
+                var html_47589a07b85f94cb115c93b10fc8d716 = $(`&lt;div id=&quot;html_47589a07b85f94cb115c93b10fc8d716&quot; style=&quot;width: 100.0%; height: 100.0%;&quot;&gt;&lt;b&gt;Los Angeles&lt;/b&gt;&lt;br&gt;&lt;i&gt;Nov 10, 2025&lt;/i&gt;&lt;/div&gt;`)[0];
+                popup_19b789dce62aae777ffdce062ec44070.setContent(html_47589a07b85f94cb115c93b10fc8d716);
+            
+        
+
+        marker_431baafae00fbae82da612fb04b2f573.bindPopup(popup_19b789dce62aae777ffdce062ec44070)
+        ;
+
+        
+    
+    
+            marker_431baafae00fbae82da612fb04b2f573.bindTooltip(
+                `&lt;div&gt;
+                     Los Angeles (Nov 10, 2025)
+                 &lt;/div&gt;`,
+                {
+  &quot;sticky&quot;: true,
+}
+            );
+        
+    
+                marker_431baafae00fbae82da612fb04b2f573.setIcon(icon_3acc88843539b474649587b628de279f);
+            
+    
+            var marker_9d513761e291b4316c7745209e00dadf = L.marker(
+                [32.709044, -117.17215],
+                {
+}
+            ).addTo(map_f2674b3dc11828097e93bcb7160107a1);
+        
+    
+            var icon_4f65a60ab81c039d77815f6e28b60597 = L.AwesomeMarkers.icon(
+                {
+  &quot;markerColor&quot;: &quot;red&quot;,
+  &quot;iconColor&quot;: &quot;white&quot;,
+  &quot;icon&quot;: &quot;info-sign&quot;,
+  &quot;prefix&quot;: &quot;glyphicon&quot;,
+  &quot;extraClasses&quot;: &quot;fa-rotate-0&quot;,
+}
+            );
+        
+    
+        var popup_0dd08165992ffec1100c121b83d5d869 = L.popup({
+  &quot;maxWidth&quot;: 200,
+});
+
+        
+            
+                var html_981672945e2f7d8f1e42276ab3549f9b = $(`&lt;div id=&quot;html_981672945e2f7d8f1e42276ab3549f9b&quot; style=&quot;width: 100.0%; height: 100.0%;&quot;&gt;&lt;b&gt;San Diego&lt;/b&gt;&lt;br&gt;&lt;i&gt;Dec 07, 2025&lt;/i&gt;&lt;/div&gt;`)[0];
+                popup_0dd08165992ffec1100c121b83d5d869.setContent(html_981672945e2f7d8f1e42276ab3549f9b);
+            
+        
+
+        marker_9d513761e291b4316c7745209e00dadf.bindPopup(popup_0dd08165992ffec1100c121b83d5d869)
+        ;
+
+        
+    
+    
+            marker_9d513761e291b4316c7745209e00dadf.bindTooltip(
+                `&lt;div&gt;
+                     San Diego (Dec 07, 2025)
+                 &lt;/div&gt;`,
+                {
+  &quot;sticky&quot;: true,
+}
+            );
+        
+    
+                marker_9d513761e291b4316c7745209e00dadf.setIcon(icon_4f65a60ab81c039d77815f6e28b60597);
+            
+    
+            var marker_b5d4077d5849e3f4f85e772057849fc8 = L.marker(
+                [43.0731, -89.4012],
+                {
+}
+            ).addTo(map_f2674b3dc11828097e93bcb7160107a1);
+        
+    
+            var icon_b39f5896a896b54d3c089d4f32a4a30c = L.AwesomeMarkers.icon(
+                {
+  &quot;markerColor&quot;: &quot;green&quot;,
+  &quot;iconColor&quot;: &quot;white&quot;,
+  &quot;icon&quot;: &quot;home&quot;,
+  &quot;prefix&quot;: &quot;fa&quot;,
+  &quot;extraClasses&quot;: &quot;fa-rotate-0&quot;,
+}
+            );
+        
+    
+        var popup_f86fd6b57547b8e7793dcd8e417db0da = L.popup({
+  &quot;maxWidth&quot;: 200,
+});
+
+        
+            
+                var html_3d1212a4e219c7a06c378f7de529445a = $(`&lt;div id=&quot;html_3d1212a4e219c7a06c378f7de529445a&quot; style=&quot;width: 100.0%; height: 100.0%;&quot;&gt;&lt;b&gt;Madison, WI&lt;/b&gt;&lt;br&gt;Home&lt;/div&gt;`)[0];
+                popup_f86fd6b57547b8e7793dcd8e417db0da.setContent(html_3d1212a4e219c7a06c378f7de529445a);
+            
+        
+
+        marker_b5d4077d5849e3f4f85e772057849fc8.bindPopup(popup_f86fd6b57547b8e7793dcd8e417db0da)
+        ;
+
+        
+    
+    
+            marker_b5d4077d5849e3f4f85e772057849fc8.bindTooltip(
+                `&lt;div&gt;
+                     Madison, WI (Home)
+                 &lt;/div&gt;`,
+                {
+  &quot;sticky&quot;: true,
+}
+            );
+        
+    
+                marker_b5d4077d5849e3f4f85e772057849fc8.setIcon(icon_b39f5896a896b54d3c089d4f32a4a30c);
+            
+&lt;/script&gt;
+&lt;/html&gt;" style="position:absolute;width:100%;height:100%;left:0;top:0;border:none !important;" allowfullscreen webkitallowfullscreen mozallowfullscreen></iframe></div></div>

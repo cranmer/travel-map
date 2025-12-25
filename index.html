@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travel Map - Interactive Travel Visualizations</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        .subtitle {
+            font-size: 1.3rem;
+            opacity: 0.9;
+        }
+        .github-link {
+            display: inline-block;
+            margin-top: 20px;
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border: 2px solid white;
+            border-radius: 25px;
+            transition: all 0.3s;
+        }
+        .github-link:hover {
+            background: white;
+            color: #667eea;
+        }
+        .styles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin-top: 30px;
+        }
+        .style-card {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .style-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 50px rgba(0,0,0,0.3);
+        }
+        .style-card h2 {
+            background: #f8f9fa;
+            padding: 20px;
+            font-size: 1.5rem;
+            border-bottom: 1px solid #eee;
+        }
+        .style-card .description {
+            padding: 20px;
+            color: #666;
+        }
+        .style-card .links {
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #eee;
+        }
+        .style-card a {
+            display: inline-block;
+            margin-right: 15px;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .style-card a:hover {
+            text-decoration: underline;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            background: #667eea;
+            color: white;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+        .badge.new {
+            background: #28a745;
+        }
+        .features {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-top: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .features h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .features ul {
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+        }
+        .features li {
+            padding: 10px 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        footer {
+            text-align: center;
+            color: white;
+            margin-top: 40px;
+            opacity: 0.8;
+        }
+        footer a {
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Travel Map</h1>
+            <p class="subtitle">Generate beautiful travel maps from YAML configuration files</p>
+            <a href="https://github.com/cranmer/indiana-jones-travel-map" class="github-link">View on GitHub</a>
+        </header>
+
+        <div class="styles-grid">
+            <div class="style-card">
+                <h2>Pins</h2>
+                <div class="description">
+                    Clean, modern map with colored markers at each location. Simple and effective for showing visited places.
+                </div>
+                <div class="links">
+                    <a href="examples/pins_example.html">View Demo</a>
+                </div>
+            </div>
+
+            <div class="style-card">
+                <h2>Arcs</h2>
+                <div class="description">
+                    Location pins connected by curved great-circle arcs. Inspired by Facebook check-in style maps.
+                </div>
+                <div class="links">
+                    <a href="examples/arcs_example.html">View Demo</a>
+                </div>
+            </div>
+
+            <div class="style-card">
+                <h2>Indiana Jones</h2>
+                <div class="description">
+                    Vintage/sepia styled map with red dotted flight paths. Inspired by the classic movie travel sequences.
+                </div>
+                <div class="links">
+                    <a href="examples/indiana-jones_example.html">View Demo</a>
+                </div>
+            </div>
+
+            <div class="style-card">
+                <h2>Worldline 3D <span class="badge new">New</span></h2>
+                <div class="description">
+                    Interactive 3D spacetime visualization using Three.js. Shows travel as worldlines through space and time. Hover over cities to highlight trips, double-click to select.
+                </div>
+                <div class="links">
+                    <a href="examples/worldline3d_example.html">View Demo</a>
+                    <a href="examples/worldline3d_example_iframe.html">Iframe Version</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="features">
+            <h2>Features</h2>
+            <ul>
+                <li>Multiple output formats: Interactive HTML or static PNG/SVG</li>
+                <li>Automatic route generation from chronological dates</li>
+                <li>Trip grouping based on date proximity</li>
+                <li>Routes from home with return arcs</li>
+                <li>Correct handling of international dateline crossings</li>
+                <li>Import locations from geotagged photos</li>
+                <li>Iframe wrappers for easy website embedding</li>
+                <li>Simple YAML configuration format</li>
+            </ul>
+        </div>
+
+        <footer>
+            <p>MIT License &bull; <a href="https://github.com/cranmer/indiana-jones-travel-map">GitHub</a></p>
+        </footer>
+    </div>
+</body>
+</html>
