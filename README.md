@@ -2,7 +2,13 @@
 
 Generate beautiful travel maps from YAML configuration files. Features multiple visual styles including classic pins, arcs, Indiana Jones-inspired vintage maps, and interactive 3D worldline visualizations.
 
-**[View Live Demos](https://theoryandpractice.org/indiana-jones-travel-map/)**
+**[View Live Demos](https://theoryandpractice.org/travel-map/)**
+
+| Pins | Arcs |
+|:---:|:---:|
+| ![Pins](examples/pins-screenshot.png) | ![Arcs](examples/screenshot-arc.png) |
+| **Indiana Jones** | **Worldline 3D** |
+| ![Indiana Jones](examples/indiana-jones-screenshot.png) | ![Worldline 3D](examples/screenshot-3d.png) |
 
 ## Installation
 
