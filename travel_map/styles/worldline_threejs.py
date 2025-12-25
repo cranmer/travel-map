@@ -249,10 +249,11 @@ class WorldlineThreejsRenderer(BaseRenderer):
         min_lon = min(effective_lons) - padding
         max_lon = max(effective_lons) + padding
 
-        # Latitude extent - extend south to include South America
+        # Latitude extent - extend to include South America and Alaska
         min_lat = min(lats) - padding
         max_lat = max(lats) + padding
         min_lat = min(min_lat, -55)  # Always include South America
+        max_lat = max(max_lat, 72)   # Always include Alaska
 
         # Clamp to valid range
         min_lat = max(min_lat, -85)
@@ -337,6 +338,26 @@ class WorldlineThreejsRenderer(BaseRenderer):
                 'date': self._format_date(loc) if loc.date else None
             })
 
+        # Calculate trip layer times (one layer per trip, at the first location's time)
+        trip_layer_times = []
+        if self.config.routes_from_home:
+            # Group locations into trips based on date proximity
+            dated_locations = [(loc, loc_times.get(loc.name, 0.5))
+                               for loc in locations if loc.date]
+            if dated_locations:
+                sorted_locs = sorted(dated_locations, key=lambda x: x[0].date)
+                current_trip_time = sorted_locs[0][1]  # First location's normalized time
+                trip_layer_times.append(float(current_trip_time))
+
+                for i in range(1, len(sorted_locs)):
+                    prev_date = sorted_locs[i - 1][0].date
+                    curr_date = sorted_locs[i][0].date
+                    gap = (curr_date - prev_date).days
+
+                    if gap > self.config.trip_gap_days:
+                        # New trip - add a layer at this location's time
+                        trip_layer_times.append(float(sorted_locs[i][1]))
+
         # Scene dimensions - use extent center for map alignment
         lon_center = (lon_range[0] + lon_range[1]) / 2
         lat_center = (lat_range[0] + lat_range[1]) / 2
@@ -380,12 +401,12 @@ class WorldlineThreejsRenderer(BaseRenderer):
 </head>
 <body>
     <div id="title">{title}</div>
-    <div id="info">Drag to rotate, scroll to zoom</div>
+    <div id="info">Drag to rotate, scroll to zoom, double-click to select</div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script>
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xf5f0e6);
+        scene.background = new THREE.Color(0xffffff);
 
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
 
@@ -419,23 +440,23 @@ class WorldlineThreejsRenderer(BaseRenderer):
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             canvas.width = 512;
-            canvas.height = 64;
+            canvas.height = 128;
             // Transparent background (no fillRect)
-            ctx.font = 'bold 28px Arial';
+            ctx.font = 'bold 48px Arial';
             ctx.fillStyle = '#222';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             // Add subtle text shadow for readability
-            ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
-            ctx.shadowBlur = 4;
+            ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
+            ctx.shadowBlur = 6;
             ctx.shadowOffsetX = 0;
             ctx.shadowOffsetY = 0;
-            ctx.fillText(text, 256, 32);
+            ctx.fillText(text, 256, 64);
             const texture = new THREE.CanvasTexture(canvas);
             texture.minFilter = THREE.LinearFilter;
             const material = new THREE.SpriteMaterial({{ map: texture, transparent: true }});
             const sprite = new THREE.Sprite(material);
-            sprite.scale.set(lonSpan * scale * 0.06, lonSpan * scale * 0.008, 1);
+            sprite.scale.set(lonSpan * scale * 0.18, lonSpan * scale * 0.036, 1);
             return sprite;
         }}
 
@@ -453,7 +474,7 @@ class WorldlineThreejsRenderer(BaseRenderer):
 
         // Base map (bottom)
         const baseMat = new THREE.MeshBasicMaterial({{
-            map: mapTexture, transparent: true, opacity: {self.base_map_opacity}, side: THREE.DoubleSide
+            map: mapTexture, transparent: true, opacity: 1.0, side: THREE.DoubleSide
         }});
         const baseGeo = new THREE.PlaneGeometry(planeWidth, planeHeight);
         const basePlane = new THREE.Mesh(baseGeo, baseMat);
@@ -461,15 +482,50 @@ class WorldlineThreejsRenderer(BaseRenderer):
         basePlane.position.y = -0.02 * timeScale;
         scene.add(basePlane);
 
-        // Top map
+        // Top map (transparent)
         const topMat = new THREE.MeshBasicMaterial({{
-            map: mapTexture, transparent: true, opacity: {self.base_map_opacity}, side: THREE.DoubleSide
+            map: mapTexture, transparent: true, opacity: 0.2, side: THREE.DoubleSide
         }});
         const topGeo = new THREE.PlaneGeometry(planeWidth, planeHeight);
         const topPlane = new THREE.Mesh(topGeo, topMat);
         topPlane.rotation.x = -Math.PI / 2;
         topPlane.position.y = 1.02 * timeScale;
         scene.add(topPlane);
+
+        // Intermediate trip layers (semi-transparent, with hover interaction)
+        const tripTimes = {json.dumps(trip_layer_times)};
+        const tripPlanes = [];
+        const defaultOpacity = 0.05;
+        const hoverOpacity = 0.8;
+
+        tripTimes.forEach(t => {{
+            const tripMat = new THREE.MeshBasicMaterial({{
+                map: mapTexture, transparent: true, opacity: defaultOpacity, side: THREE.DoubleSide
+            }});
+            const tripGeo = new THREE.PlaneGeometry(planeWidth, planeHeight);
+            const tripPlane = new THREE.Mesh(tripGeo, tripMat);
+            tripPlane.rotation.x = -Math.PI / 2;
+            tripPlane.position.y = t * timeScale;
+            tripPlane.userData.normalizedTime = t;
+            scene.add(tripPlane);
+            tripPlanes.push(tripPlane);
+        }});
+
+        // Corner vertical lines for the map cube
+        const cornerLineMat = new THREE.LineBasicMaterial({{ color: 0xcccccc, transparent: true, opacity: 0.5 }});
+        const corners = [
+            [-planeWidth/2, -planeHeight/2],
+            [-planeWidth/2, planeHeight/2],
+            [planeWidth/2, -planeHeight/2],
+            [planeWidth/2, planeHeight/2]
+        ];
+        corners.forEach(([x, z]) => {{
+            const cornerLineGeo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(x, -0.02 * timeScale, z),
+                new THREE.Vector3(x, 1.02 * timeScale, z)
+            ]);
+            scene.add(new THREE.Line(cornerLineGeo, cornerLineMat));
+        }});
 
         // Home vertical line (use effective home position accounting for any offset)
         const homeLon = {float(home.lon)};
@@ -506,13 +562,27 @@ class WorldlineThreejsRenderer(BaseRenderer):
         const markers = {json.dumps(markers_data)};
         const markerGeo = new THREE.SphereGeometry(lonSpan * scale * 0.005, 16, 16);
         const markerMat = new THREE.MeshBasicMaterial({{ color: 0x3498db }});
+        const hitGeo = new THREE.SphereGeometry(lonSpan * scale * 0.025, 16, 16);  // 5x larger for hit detection
+        const hitMat = new THREE.MeshBasicMaterial({{ visible: false }});
         const dropLineMat = new THREE.LineBasicMaterial({{ color: 0xcccccc, transparent: true, opacity: 0.6 }});
+        const markerSpheres = [];  // Used for raycasting (invisible hit spheres)
 
         markers.forEach(m => {{
             const pos = toScene(m.lon, m.lat, m.t);
+            console.log('Marker:', m.name, 'lon:', m.lon, 'pos:', pos.x, pos.y, pos.z);
+
+            // Visible marker
             const sphere = new THREE.Mesh(markerGeo, markerMat);
             sphere.position.copy(pos);
             scene.add(sphere);
+
+            // Larger invisible hit detection sphere
+            const hitSphere = new THREE.Mesh(hitGeo, hitMat);
+            hitSphere.position.copy(pos);
+            hitSphere.userData.normalizedTime = m.t;
+            hitSphere.userData.name = m.name;
+            scene.add(hitSphere);
+            markerSpheres.push(hitSphere);
 
             // Vertical drop line from marker to base map
             const dropLineGeo = new THREE.BufferGeometry().setFromPoints([
@@ -526,9 +596,116 @@ class WorldlineThreejsRenderer(BaseRenderer):
             scene.add(label);
         }});
 
-        // Position camera (rotated 180° around Y axis so map appears right-side up)
+        // Raycaster for hover and click detection
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let hoveredPlane = null;
+        let selectedPlane = null;
+        const selectedOpacity = 0.8;
+        const dimmedOpacity = 0.05;
+        const baseDefaultOpacity = 1.0;
+        const topDefaultOpacity = 0.2;
+
+        function dimAllLayers() {{
+            basePlane.material.opacity = dimmedOpacity;
+            topPlane.material.opacity = dimmedOpacity;
+            tripPlanes.forEach(plane => {{
+                if (plane !== selectedPlane && plane !== hoveredPlane) {{
+                    plane.material.opacity = dimmedOpacity;
+                }}
+            }});
+        }}
+
+        function restoreAllLayers() {{
+            basePlane.material.opacity = baseDefaultOpacity;
+            topPlane.material.opacity = topDefaultOpacity;
+            tripPlanes.forEach(plane => {{
+                plane.material.opacity = defaultOpacity;
+            }});
+        }}
+
+        function findTripPlaneForMarker(markerTime) {{
+            // Find the trip plane closest to this marker's time (at or before)
+            let closestPlane = null;
+            let closestDiff = Infinity;
+            tripPlanes.forEach(plane => {{
+                const planeTime = plane.userData.normalizedTime;
+                if (planeTime <= markerTime) {{
+                    const diff = markerTime - planeTime;
+                    if (diff < closestDiff) {{
+                        closestDiff = diff;
+                        closestPlane = plane;
+                    }}
+                }}
+            }});
+            return closestPlane;
+        }}
+
+        function onMouseMove(event) {{
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(markerSpheres);
+
+            // Reset previously hovered plane (but not if it's selected)
+            if (hoveredPlane && hoveredPlane !== selectedPlane) {{
+                hoveredPlane.material.opacity = defaultOpacity;
+                hoveredPlane = null;
+                // Restore layers if nothing selected
+                if (!selectedPlane) {{
+                    restoreAllLayers();
+                }}
+            }}
+
+            if (intersects.length > 0) {{
+                const markerTime = intersects[0].object.userData.normalizedTime;
+                const closestPlane = findTripPlaneForMarker(markerTime);
+                if (closestPlane && closestPlane !== selectedPlane) {{
+                    // Dim all other layers
+                    dimAllLayers();
+                    closestPlane.material.opacity = hoverOpacity;
+                    hoveredPlane = closestPlane;
+                }}
+            }}
+        }}
+
+        function onDoubleClick(event) {{
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(markerSpheres);
+
+            if (intersects.length > 0) {{
+                // Double-clicked on a marker - select its trip plane
+                const markerTime = intersects[0].object.userData.normalizedTime;
+                const closestPlane = findTripPlaneForMarker(markerTime);
+
+                if (closestPlane) {{
+                    // Deselect previous selection
+                    if (selectedPlane && selectedPlane !== closestPlane) {{
+                        selectedPlane.material.opacity = defaultOpacity;
+                    }}
+                    // Select new plane and dim others
+                    selectedPlane = closestPlane;
+                    dimAllLayers();
+                    selectedPlane.material.opacity = selectedOpacity;
+                }}
+            }} else {{
+                // Double-clicked elsewhere - deselect and restore
+                selectedPlane = null;
+                hoveredPlane = null;
+                restoreAllLayers();
+            }}
+        }}
+
+        window.addEventListener('mousemove', onMouseMove, false);
+        window.addEventListener('dblclick', onDoubleClick, false);
+
+        // Position camera looking from directly south, ~10 degrees higher
         const camDist = lonSpan * scale * 0.8;
-        camera.position.set(camDist, camDist * 0.8, -camDist);
+        camera.position.set(0, camDist * 0.9, -camDist * 1.2);
         controls.target.set(0, timeScale * 0.5, 0);
         controls.update();
 
