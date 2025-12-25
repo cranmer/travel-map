@@ -2,6 +2,8 @@
 
 Generate beautiful travel maps from YAML configuration files. Features multiple visual styles including classic pins, arcs, Indiana Jones-inspired vintage maps, and interactive 3D worldline visualizations.
 
+**[View Live Demos](https://theoryandpractice.org/indiana-jones-travel-map/)**
+
 ## Installation
 
 ```bash
