@@ -201,6 +201,27 @@ def preview(config_file, style, output, embed):
 
     click.echo(f"Saved to: {output_path}")
 
+    # Also generate iframe wrapper version
+    iframe_path = output_path.with_stem(output_path.stem + "_iframe")
+    iframe_html = f'''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{config.title or "Travel Map"}</title>
+    <style>
+        body {{ margin: 0; padding: 0; }}
+        iframe {{ width: 100%; height: 100vh; border: none; }}
+    </style>
+</head>
+<body>
+    <iframe src="{output_path.name}" allowfullscreen></iframe>
+</body>
+</html>
+'''
+    with open(iframe_path, "w") as f:
+        f.write(iframe_html)
+    click.echo(f"Iframe version: {iframe_path}")
+
     if not embed:
         click.echo(f"Opening preview in browser...")
         webbrowser.open(f"file://{output_path.absolute()}")
