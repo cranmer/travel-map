@@ -569,7 +569,6 @@ class WorldlineThreejsRenderer(BaseRenderer):
 
         markers.forEach(m => {{
             const pos = toScene(m.lon, m.lat, m.t);
-            console.log('Marker:', m.name, 'lon:', m.lon, 'pos:', pos.x, pos.y, pos.z);
 
             // Visible marker
             const sphere = new THREE.Mesh(markerGeo, markerMat);
