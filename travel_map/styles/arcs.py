@@ -166,7 +166,10 @@ class ArcsRenderer(BaseRenderer):
         m = folium.Map(
             location=center,
             zoom_start=4,
-            tiles="CartoDB positron",
+            # Esri Light Gray Canvas: similar look to CartoDB Positron, no API key
+            tiles="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+            attr="Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ",
+            max_zoom=16,
         )
 
         m.fit_bounds([[bounds[0], bounds[2]], [bounds[1], bounds[3]]])
