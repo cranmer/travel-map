@@ -75,7 +75,6 @@ class TravelConfig:
     home: Optional[Location] = None
     routes_from_home: bool = False
     trip_gap_days: int = 7  # Days apart to consider separate trips
-    merge_radius_km: float = 25.0  # Merge markers for stops closer than this (0 disables)
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -193,7 +192,6 @@ class TravelConfig:
             home=home,
             routes_from_home=data.get("routes_from_home", False),
             trip_gap_days=data.get("trip_gap_days", 7),
-            merge_radius_km=float(data.get("merge_radius_km", 25.0)),
         )
 
     @classmethod
