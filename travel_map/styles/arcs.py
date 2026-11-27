@@ -7,6 +7,8 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from PIL import Image
 import io
+import html
+from dataclasses import replace
 import numpy as np
 
 from .base import BaseRenderer
@@ -115,11 +117,50 @@ class ArcsRenderer(BaseRenderer):
 
         return unwrapped
 
+    @staticmethod
+    def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+        """Great-circle distance in km."""
+        lat1, lon1, lat2, lon2 = map(np.radians, (lat1, lon1, lat2, lon2))
+        a = (np.sin((lat2 - lat1) / 2) ** 2
+             + np.cos(lat1) * np.cos(lat2) * np.sin((lon2 - lon1) / 2) ** 2)
+        return float(2 * 6371.0 * np.arcsin(np.sqrt(a)))
+
+    def _group_nearby(self) -> list[list[tuple[int, "Location"]]]:
+        """Group locations closer than merge_radius_km so they share one marker.
+
+        Each group is a list of (index, location); the first entry is the anchor
+        whose position the marker (and any arcs to group members) uses.
+        """
+        radius = self.config.merge_radius_km
+        groups: list[list[tuple[int, "Location"]]] = []
+        for i, loc in enumerate(self.config.locations):
+            for group in groups:
+                anchor = group[0][1]
+                if radius > 0 and self._haversine_km(anchor.lat, anchor.lon, loc.lat, loc.lon) <= radius:
+                    group.append((i, loc))
+                    break
+            else:
+                groups.append([(i, loc)])
+        return groups
+
     def render_interactive(self) -> str:
         """Render an interactive Folium map with markers and animated arcs."""
+        # Merge nearby stops; arcs to any member are drawn to the group's anchor
+        groups = self._group_nearby()
+        anchor_pos = {}
+        for group in groups:
+            anchor = group[0][1]
+            for _, loc in group:
+                anchor_pos[(loc.lat, loc.lon)] = (anchor.lat, anchor.lon)
+
+        def snap(loc):
+            lat, lon = anchor_pos.get((loc.lat, loc.lon), (loc.lat, loc.lon))
+            return replace(loc, lat=lat, lon=lon)
+
+        routes = [(snap(f), snap(t)) for f, t in self.config.get_routes()]
+
         # First pass: calculate longitude offsets for all locations
         lon_offset_by_name = {}
-        routes = self.config.get_routes()
         for from_loc, to_loc in routes:
             from_offset = lon_offset_by_name.get(from_loc.name, 0)
             effective_from_lon = from_loc.lon + from_offset
@@ -175,7 +216,6 @@ class ArcsRenderer(BaseRenderer):
         m.fit_bounds([[bounds[0], bounds[2]], [bounds[1], bounds[3]]])
 
         # Draw arcs first (so markers appear on top)
-        routes = self.config.get_routes()
         for from_loc, to_loc in routes:
             # Get the offset for from_loc (for multi-leg trips crossing dateline)
             from_offset = lon_offset_by_name.get(from_loc.name, 0)
@@ -217,45 +257,49 @@ class ArcsRenderer(BaseRenderer):
                 pulse_color="#ffffff",
             ).add_to(m)
 
-        # Add markers at their effective positions (shifted if crossing dateline)
-        for i, loc in enumerate(self.config.locations):
-            popup_content = f"<b>{loc.name}</b>"
-            if loc.label:
-                popup_content += f"<br>{loc.label}"
-            date_str = self._format_date(loc)
-            if date_str:
-                popup_content += f"<br><i>{date_str}</i>"
+        # Add one numbered marker per group of nearby stops, at the anchor's
+        # effective position (shifted if crossing dateline)
+        for group in groups:
+            anchor = group[0][1]
+            numbers = ",".join(str(i + 1) for i, _ in group)
 
-            tooltip = loc.name
-            if date_str:
-                tooltip += f" ({date_str})"
+            tooltip_lines = []
+            popup_lines = []
+            for i, loc in group:
+                date_str = self._format_date(loc)
+                name = html.escape(loc.name)
+                tooltip_lines.append(f"{i + 1}. {name}" + (f" ({date_str})" if date_str else ""))
+                entry = f"<b>{i + 1}. {name}</b>"
+                if loc.label:
+                    entry += f"<br>{html.escape(loc.label)}"
+                if date_str:
+                    entry += f"<br><i>{date_str}</i>"
+                popup_lines.append(entry)
 
-            # Use shifted longitude if this location crossed the dateline
-            effective_lon = loc.lon
-            if loc.name in lon_offset_by_name:
-                effective_lon = loc.lon + lon_offset_by_name[loc.name]
+            effective_lon = anchor.lon
+            for _, loc in group:
+                if loc.name in lon_offset_by_name:
+                    effective_lon = anchor.lon + lon_offset_by_name[loc.name]
+                    break
 
-            # Use numbered markers to show order
-            folium.CircleMarker(
-                location=[loc.lat, effective_lon],
-                radius=10,
-                popup=folium.Popup(popup_content, max_width=200),
-                tooltip=tooltip,
-                color=self.marker_color,
-                fill=True,
-                fill_color=self.marker_color,
-                fill_opacity=0.8,
-                weight=2,
-            ).add_to(m)
-
-            # Add number label
+            # A single interactive DivIcon (circle, or pill for merged stops)
+            # carries the number, tooltip and popup, so hovering anywhere on it works.
+            width = max(22, 7 * len(numbers) + 12)
+            label_html = (
+                f'<div style="box-sizing: border-box; width: {width}px; height: 22px; '
+                f'border-radius: 11px; border: 2px solid {self.marker_color}; '
+                f'background: rgba(52, 152, 219, 0.8); color: white; font: bold 10px/18px sans-serif; '
+                f'text-align: center; white-space: nowrap;">{numbers}</div>'
+            )
             folium.Marker(
-                location=[loc.lat, effective_lon],
+                location=[anchor.lat, effective_lon],
                 icon=folium.DivIcon(
-                    html=f'<div style="font-size: 10px; color: white; font-weight: bold; text-align: center; line-height: 20px;">{i + 1}</div>',
-                    icon_size=(20, 20),
-                    icon_anchor=(10, 10),
+                    html=label_html,
+                    icon_size=(width, 22),
+                    icon_anchor=(width // 2, 11),
                 ),
+                tooltip=folium.Tooltip("<br>".join(tooltip_lines)),
+                popup=folium.Popup("<hr style='margin:4px 0'>".join(popup_lines), max_width=250),
             ).add_to(m)
 
         # Add home marker if routes_from_home is enabled
