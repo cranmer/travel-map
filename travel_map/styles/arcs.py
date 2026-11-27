@@ -1,12 +1,15 @@
 """Arcs style renderer - pins with curved connection lines."""
 
 import folium
-from folium.plugins import AntPath
+from branca.element import MacroElement
+from jinja2 import Template
+from folium.plugins import AntPath, MarkerCluster
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from PIL import Image
 import io
+import html
 import numpy as np
 
 from .base import BaseRenderer
@@ -115,11 +118,48 @@ class ArcsRenderer(BaseRenderer):
 
         return unwrapped
 
+    # Leaflet.markercluster icon: a pill listing the stop numbers it contains.
+    CLUSTER_ICON_JS = """
+    function(cluster) {
+        var markers = cluster.getAllChildMarkers();
+        markers.sort(function(a, b) { return a.options.number - b.options.number; });
+        var text = markers.map(function(m) { return m.options.number; }).join(',');
+        var w = Math.max(22, 7 * text.length + 12);
+        return L.divIcon({
+            html: '<div style="box-sizing: border-box; width: ' + w + 'px; height: 22px; '
+                + 'border-radius: 11px; border: 2px solid %(color)s; background: rgba(52, 152, 219, 0.8); '
+                + 'color: white; font: bold 10px/18px sans-serif; text-align: center; white-space: nowrap;">'
+                + text + '</div>',
+            className: 'empty',
+            iconSize: [w, 22],
+            iconAnchor: [w / 2, 11]
+        });
+    }
+    """
+
+    class _ClusterTooltips(MacroElement):
+        """On hover, show a Leaflet tooltip on a cluster listing each visit in it."""
+
+        _template = Template("""
+            {% macro script(this, kwargs) %}
+            {{ this._parent.get_name() }}.on('clustermouseover', function(e) {
+                var markers = e.layer.getAllChildMarkers();
+                markers.sort(function(a, b) { return a.options.number - b.options.number; });
+                var text = markers.map(function(m) { return m.options.visit; }).join('<br>');
+                // A cluster is its own icon and has no tooltipAnchor, which Leaflet
+                // needs to position a tooltip; give it the same anchor as markers.
+                e.layer.options.tooltipAnchor = [0, 0];
+                e.layer.bindTooltip(text).openTooltip();
+            });
+            {% endmacro %}
+        """)
+
     def render_interactive(self) -> str:
         """Render an interactive Folium map with markers and animated arcs."""
+        routes = self.config.get_routes()
+
         # First pass: calculate longitude offsets for all locations
         lon_offset_by_name = {}
-        routes = self.config.get_routes()
         for from_loc, to_loc in routes:
             from_offset = lon_offset_by_name.get(from_loc.name, 0)
             effective_from_lon = from_loc.lon + from_offset
@@ -175,7 +215,6 @@ class ArcsRenderer(BaseRenderer):
         m.fit_bounds([[bounds[0], bounds[2]], [bounds[1], bounds[3]]])
 
         # Draw arcs first (so markers appear on top)
-        routes = self.config.get_routes()
         for from_loc, to_loc in routes:
             # Get the offset for from_loc (for multi-leg trips crossing dateline)
             from_offset = lon_offset_by_name.get(from_loc.name, 0)
@@ -217,46 +256,52 @@ class ArcsRenderer(BaseRenderer):
                 pulse_color="#ffffff",
             ).add_to(m)
 
+        # Numbered markers go in a cluster group: markers that overlap on screen
+        # merge into one pill (e.g. "7,15") and split apart as you zoom in.
+        cluster = MarkerCluster(
+            icon_create_function=self.CLUSTER_ICON_JS % {"color": self.marker_color},
+            options={
+                "maxClusterRadius": 25,  # px; roughly where two 22px markers start to overlap
+                "showCoverageOnHover": False,
+                "spiderfyOnMaxZoom": True,
+                "zoomToBoundsOnClick": True,
+            },
+        ).add_to(m)
+        self._ClusterTooltips().add_to(cluster)
+
         # Add markers at their effective positions (shifted if crossing dateline)
         for i, loc in enumerate(self.config.locations):
-            popup_content = f"<b>{loc.name}</b>"
-            if loc.label:
-                popup_content += f"<br>{loc.label}"
+            number = str(i + 1)
             date_str = self._format_date(loc)
+            name = html.escape(loc.name)
+
+            visit_text = f"{number}. {loc.name}" + (f" ({date_str})" if date_str else "")
+            popup_content = f"<b>{name}</b>"
+            if loc.label:
+                popup_content += f"<br>{html.escape(loc.label)}"
             if date_str:
                 popup_content += f"<br><i>{date_str}</i>"
 
-            tooltip = loc.name
-            if date_str:
-                tooltip += f" ({date_str})"
-
-            # Use shifted longitude if this location crossed the dateline
             effective_lon = loc.lon
             if loc.name in lon_offset_by_name:
                 effective_lon = loc.lon + lon_offset_by_name[loc.name]
 
-            # Use numbered markers to show order
-            folium.CircleMarker(
-                location=[loc.lat, effective_lon],
-                radius=10,
-                popup=folium.Popup(popup_content, max_width=200),
-                tooltip=tooltip,
-                color=self.marker_color,
-                fill=True,
-                fill_color=self.marker_color,
-                fill_opacity=0.8,
-                weight=2,
-            ).add_to(m)
-
-            # Add number label
+            # A single interactive DivIcon carries the number, tooltip and popup,
+            # so hovering anywhere on the circle works.
+            label_html = (
+                f'<div style="box-sizing: border-box; width: 22px; height: 22px; '
+                f'border-radius: 11px; border: 2px solid {self.marker_color}; '
+                f'background: rgba(52, 152, 219, 0.8); color: white; font: bold 10px/18px sans-serif; '
+                f'text-align: center; white-space: nowrap;">{number}</div>'
+            )
             folium.Marker(
                 location=[loc.lat, effective_lon],
-                icon=folium.DivIcon(
-                    html=f'<div style="font-size: 10px; color: white; font-weight: bold; text-align: center; line-height: 20px;">{i + 1}</div>',
-                    icon_size=(20, 20),
-                    icon_anchor=(10, 10),
-                ),
-            ).add_to(m)
+                icon=folium.DivIcon(html=label_html, icon_size=(22, 22), icon_anchor=(11, 11)),
+                tooltip=folium.Tooltip(html.escape(visit_text)),
+                popup=folium.Popup(popup_content, max_width=250),
+                number=i + 1,
+                visit=html.escape(visit_text),  # read by the cluster tooltip
+            ).add_to(cluster)
 
         # Add home marker if routes_from_home is enabled
         if self.config.routes_from_home:

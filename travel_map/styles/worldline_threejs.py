@@ -367,7 +367,10 @@ class WorldlineThreejsRenderer(BaseRenderer):
         # Scale factor to make the scene reasonably sized
         scale = 0.1
 
+        # Only show an on-page title when one is configured (like the arcs style);
+        # the fallback is just for the browser tab.
         title = self.config.title if self.config.title else "Travel Worldline"
+        title_div = f'<div id="title">{self.config.title}</div>' if self.config.title else ""
 
         # Generate HTML with Three.js
         html = f'''<!DOCTYPE html>
@@ -380,13 +383,14 @@ class WorldlineThreejsRenderer(BaseRenderer):
         canvas {{ display: block; }}
         #info {{
             position: absolute;
-            top: 10px;
+            bottom: 10px;
             left: 10px;
             color: #333;
             background: rgba(255,255,255,0.8);
-            padding: 10px;
+            padding: 6px 10px;
             border-radius: 5px;
-            font-size: 14px;
+            font-size: 12px;
+            pointer-events: none;
         }}
         #title {{
             position: absolute;
@@ -400,7 +404,7 @@ class WorldlineThreejsRenderer(BaseRenderer):
     </style>
 </head>
 <body>
-    <div id="title">{title}</div>
+    {title_div}
     <div id="info">Drag to rotate, scroll to zoom, double-click to select</div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
