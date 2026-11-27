@@ -1,6 +1,8 @@
 """Arcs style renderer - pins with curved connection lines."""
 
 import folium
+from branca.element import MacroElement
+from jinja2 import Template
 from folium.plugins import AntPath, MarkerCluster
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
@@ -116,18 +118,15 @@ class ArcsRenderer(BaseRenderer):
 
         return unwrapped
 
-    # Leaflet.markercluster icon: a pill listing the stop numbers it contains,
-    # with a native hover title listing each visit.
+    # Leaflet.markercluster icon: a pill listing the stop numbers it contains.
     CLUSTER_ICON_JS = """
     function(cluster) {
         var markers = cluster.getAllChildMarkers();
         markers.sort(function(a, b) { return a.options.number - b.options.number; });
         var text = markers.map(function(m) { return m.options.number; }).join(',');
-        var title = markers.map(function(m) { return m.options.visit_text; }).join('\\n')
-            .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
         var w = Math.max(22, 7 * text.length + 12);
         return L.divIcon({
-            html: '<div title="' + title + '" style="box-sizing: border-box; width: ' + w + 'px; height: 22px; '
+            html: '<div style="box-sizing: border-box; width: ' + w + 'px; height: 22px; '
                 + 'border-radius: 11px; border: 2px solid %(color)s; background: rgba(52, 152, 219, 0.8); '
                 + 'color: white; font: bold 10px/18px sans-serif; text-align: center; white-space: nowrap;">'
                 + text + '</div>',
@@ -137,6 +136,23 @@ class ArcsRenderer(BaseRenderer):
         });
     }
     """
+
+    class _ClusterTooltips(MacroElement):
+        """On hover, show a Leaflet tooltip on a cluster listing each visit in it."""
+
+        _template = Template("""
+            {% macro script(this, kwargs) %}
+            {{ this._parent.get_name() }}.on('clustermouseover', function(e) {
+                var markers = e.layer.getAllChildMarkers();
+                markers.sort(function(a, b) { return a.options.number - b.options.number; });
+                var text = markers.map(function(m) { return m.options.visit; }).join('<br>');
+                // A cluster is its own icon and has no tooltipAnchor, which Leaflet
+                // needs to position a tooltip; give it the same anchor as markers.
+                e.layer.options.tooltipAnchor = [0, 0];
+                e.layer.bindTooltip(text).openTooltip();
+            });
+            {% endmacro %}
+        """)
 
     def render_interactive(self) -> str:
         """Render an interactive Folium map with markers and animated arcs."""
@@ -251,6 +267,7 @@ class ArcsRenderer(BaseRenderer):
                 "zoomToBoundsOnClick": True,
             },
         ).add_to(m)
+        self._ClusterTooltips().add_to(cluster)
 
         # Add markers at their effective positions (shifted if crossing dateline)
         for i, loc in enumerate(self.config.locations):
@@ -283,7 +300,7 @@ class ArcsRenderer(BaseRenderer):
                 tooltip=folium.Tooltip(html.escape(visit_text)),
                 popup=folium.Popup(popup_content, max_width=250),
                 number=i + 1,
-                visit_text=visit_text,
+                visit=html.escape(visit_text),  # read by the cluster tooltip
             ).add_to(cluster)
 
         # Add home marker if routes_from_home is enabled
